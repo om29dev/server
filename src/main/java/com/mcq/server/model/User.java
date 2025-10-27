@@ -26,6 +26,12 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(nullable = false)
+    private enum UserType {
+        TEACHER,
+        STUDENT
+    }
+
     public User() {
     }
 
