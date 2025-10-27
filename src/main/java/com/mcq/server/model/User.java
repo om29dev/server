@@ -3,6 +3,7 @@ package com.mcq.server.model;
 import jakarta.persistence.*;
 import java.util.UUID;
 
+
 @Entity
 public class User {
 
@@ -26,21 +27,20 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private enum UserType {
-        TEACHER,
-        STUDENT
-    }
+    private UserType role;
 
     public User() {
     }
 
-    public User(String firstname, String lastname, String email, String username, String password) {
+    public User(String firstname, String lastname, String email, String username, String password, UserType role) {
         this.firstname = firstname;
         this.lastname = lastname;
         this.email = email;
         this.username = username;
         this.password = password;
+        this.role = role;
     }
 
     public String getFirstname() {
@@ -85,5 +85,13 @@ public class User {
 
     public UUID getUuid() {
         return uuid;
+    }
+
+    public UserType getRole() {
+        return role;
+    }
+
+    public void setRole(UserType role) {
+        this.role = role;
     }
 }
