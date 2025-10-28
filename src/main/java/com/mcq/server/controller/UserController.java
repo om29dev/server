@@ -37,7 +37,7 @@ public class UserController {
     public @ResponseBody Iterable<UserDTO> getAllUsers() {
         Iterable<User> users = userRepository.findAll();
         return StreamSupport.stream(users.spliterator(), false)
-                .map(user -> new UserDTO(user))
+                .map(UserDTO::new)
                 .collect(Collectors.toList());
     }
 
@@ -45,11 +45,9 @@ public class UserController {
     public ResponseEntity<User> getUserById(@PathVariable UUID uuid) {
         Optional<User> userData = userRepository.findById(uuid);
 
-        if (userData.isPresent()) {
-            return new ResponseEntity<>(userData.get(), HttpStatus.OK); // 200
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND); // 404
-        }
+        // 200
+        // 404
+        return userData.map(user -> new ResponseEntity<>(user, HttpStatus.OK)).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PutMapping(path = "/{uuid}")
