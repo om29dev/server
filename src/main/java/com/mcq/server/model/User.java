@@ -34,7 +34,6 @@ public class User {
     public User() {
     }
 
-    // UPDATED CONSTRUCTOR
     public User(String firstname, String lastname, String email, String username, String password, UserRole role) {
         this.firstname = firstname;
         this.lastname = lastname;

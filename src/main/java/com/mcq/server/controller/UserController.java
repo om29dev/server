@@ -18,15 +18,14 @@ import java.util.stream.StreamSupport;
 public class UserController {
 
     @Autowired
-    // Assuming UserRepository has been updated to CrudRepository<User, UUID>
     private UserRepository userRepository;
 
 
     @PostMapping
-    public ResponseEntity<User> createNewUser(@RequestBody User newUser) {
+    public ResponseEntity<UserDTO> createNewUser(@RequestBody User newUser) {
         try {
             User savedUser = userRepository.save(newUser);
-            return new ResponseEntity<>(savedUser, HttpStatus.CREATED); // 201
+            return new ResponseEntity<>(new UserDTO(savedUser), HttpStatus.CREATED); // 201
         } catch (Exception e) {
             // Handles DataIntegrityViolationException for duplicate email/username or null values
             System.err.println("Error creating new user: " + e.getMessage());
@@ -80,8 +79,7 @@ public class UserController {
             userRepository.deleteById(uuid);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT); // 204 (Success, but no content to return)
         } catch (Exception e) {
-            // In a robust system, you'd check for specific exceptions (e.g., entity not found)
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR); // 500
+           return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR); // 500
         }
     }
 }
