@@ -46,31 +46,14 @@ public class AuthController {
         );
 
         if (authenticatedUser.isPresent()) {
-            // --- Implement Cookie Logic using Spring's ResponseCookie ---
-
-            // In a real application, you would generate a secure, short-lived JWT or Session ID here.
-            String sessionToken = authenticatedUser.get().getUuid().toString();
-
-            // 1. Create and configure the secure ResponseCookie 🍪
-            ResponseCookie springCookie = ResponseCookie.from("AUTH_TOKEN", sessionToken)
-                    .httpOnly(true)            // RECOMMENDED: Prevents client-side JavaScript access
-                    .secure(false)             // Set to 'true' in production with HTTPS
-                    .path("/")                 // Make the cookie available to all paths
-                    .maxAge(7 * 24 * 60 * 60)  // Set expiry to 7 days (in seconds)
-                    .sameSite("Lax")           // RECOMMENDED: Helps mitigate CSRF attacks (e.g., "Strict", "Lax", or "None")
-                    .build();
-
-            // 2. Build the ResponseEntity with the cookie in the Headers
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.SET_COOKIE, springCookie.toString()) // Add the cookie header
-                    .body("Login successful. Authentication cookie set.");
+            // Login successful - return success response without cookies
+            return ResponseEntity.ok().body("Login successful.");
 
         } else {
             // Return an unauthorized response
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password.");
         }
     }
-
     // Logout is implemented in Security Config
 
     @PostMapping("/forgot-password")
