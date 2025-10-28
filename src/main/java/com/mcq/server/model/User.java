@@ -3,13 +3,11 @@ package com.mcq.server.model;
 import jakarta.persistence.*;
 import java.util.UUID;
 
-
 @Entity
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    // UUID is often generated outside the DB or handled by the framework/business logic.
     private UUID uuid;
 
     @Column(nullable = false)
@@ -27,14 +25,17 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Enumerated(EnumType.STRING)
+    // --- NEW FIELD FOR ROLE ---
+    @Enumerated(EnumType.STRING) // Stores the Enum name (e.g., "STUDENT") as a String in the DB
     @Column(nullable = false)
-    private UserType role;
+    private UserRole role;
+    // --------------------------
 
     public User() {
     }
 
-    public User(String firstname, String lastname, String email, String username, String password, UserType role) {
+    // UPDATED CONSTRUCTOR
+    public User(String firstname, String lastname, String email, String username, String password, UserRole role) {
         this.firstname = firstname;
         this.lastname = lastname;
         this.email = email;
@@ -87,11 +88,12 @@ public class User {
         return uuid;
     }
 
-    public UserType getRole() {
+    // NEW GETTER AND SETTER FOR ROLE
+    public UserRole getRole() {
         return role;
     }
 
-    public void setRole(UserType role) {
+    public void setRole(UserRole role) {
         this.role = role;
     }
 }

@@ -1,5 +1,6 @@
 package com.mcq.server.controller;
 
+import com.mcq.server.dto.UserDTO;
 import com.mcq.server.model.User;
 import com.mcq.server.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,46 +8,80 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Optional;
 import java.util.UUID;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @RestController
-@RequestMapping(path="/users") // Base mapping for all user endpoints
+@RequestMapping(path = "/api/users")
 public class UserController {
 
-    // Inject the UserRepository to interact with the database
     @Autowired
+    // Assuming UserRepository has been updated to CrudRepository<User, UUID>
     private UserRepository userRepository;
 
-    // POST /users
-    // Used for registering a new user
+
     @PostMapping
-    public ResponseEntity<User> addNewUser (@RequestBody User user) {
-        // NOTE: In a production application, the password should be encrypted
-        // using a service layer before saving.
-        User savedUser = userRepository.save(user);
-        return new ResponseEntity<>(savedUser, HttpStatus.CREATED);
+    public ResponseEntity<User> createNewUser(@RequestBody User newUser) {
+        try {
+            User savedUser = userRepository.save(newUser);
+            return new ResponseEntity<>(savedUser, HttpStatus.CREATED); // 201
+        } catch (Exception e) {
+            // Handles DataIntegrityViolationException for duplicate email/username or null values
+            System.err.println("Error creating new user: " + e.getMessage());
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST); // 400
+        }
     }
 
-    // GET /users
-    // Returns all users from the database
     @GetMapping
-    public @ResponseBody Iterable<User> getAllUsers() {
-        return userRepository.findAll();
+    public @ResponseBody Iterable<UserDTO> getAllUsers() {
+        Iterable<User> users = userRepository.findAll();
+        return StreamSupport.stream(users.spliterator(), false)
+                .map(user -> new UserDTO(user))
+                .collect(Collectors.toList());
     }
 
-    // GET /users/{id}
-    // Returns a single user by their UUID
-    @GetMapping(path="/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable UUID id) {
-        // The User model uses UUID as the ID type.
-        // The UserRepository should extend CrudRepository<User, UUID> to correctly use findById(UUID).
-        Optional<User> userOptional = userRepository.findById(id);
+    @GetMapping(path = "/{uuid}")
+    public ResponseEntity<User> getUserById(@PathVariable UUID uuid) {
+        Optional<User> userData = userRepository.findById(uuid);
 
-        if (userOptional.isPresent()) {
-            return ResponseEntity.ok(userOptional.get());
+        if (userData.isPresent()) {
+            return new ResponseEntity<>(userData.get(), HttpStatus.OK); // 200
         } else {
-            return ResponseEntity.notFound().build();
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND); // 404
+        }
+    }
+
+    @PutMapping(path = "/{uuid}")
+    public ResponseEntity<User> updateUser(@PathVariable UUID uuid, @RequestBody User userDetails) {
+        Optional<User> userData = userRepository.findById(uuid);
+
+        if (userData.isPresent()) {
+            User user = userData.get();
+
+            // Update all non-UUID fields, including the new role
+            user.setFirstname(userDetails.getFirstname());
+            user.setLastname(userDetails.getLastname());
+            user.setEmail(userDetails.getEmail());
+            user.setUsername(userDetails.getUsername());
+            user.setPassword(userDetails.getPassword());
+            user.setRole(userDetails.getRole());
+
+            return new ResponseEntity<>(userRepository.save(user), HttpStatus.OK); // 200
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND); // 404
+        }
+    }
+
+    @DeleteMapping(path = "/{uuid}")
+    public ResponseEntity<HttpStatus> deleteUser(@PathVariable UUID uuid) {
+        try {
+            userRepository.deleteById(uuid);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT); // 204 (Success, but no content to return)
+        } catch (Exception e) {
+            // In a robust system, you'd check for specific exceptions (e.g., entity not found)
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR); // 500
         }
     }
 }
