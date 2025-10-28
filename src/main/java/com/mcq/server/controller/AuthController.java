@@ -2,12 +2,13 @@ package com.mcq.server.controller;
 
 import com.mcq.server.model.User;
 import com.mcq.server.service.AuthService;
-import com.mcq.server.service.AuthService;
+import com.mcq.server.dto.MessagewithUUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -20,42 +21,61 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody User newUser) {
+    public ResponseEntity<MessagewithUUID> register(@RequestBody User newUser) {
         try {
-            authService.registerUser(newUser);
-            return new ResponseEntity<>("User registered successfully", HttpStatus.CREATED);
+            User user = authService.registerUser(newUser);
+            return new ResponseEntity<>(new MessagewithUUID("Registration Successful.", user.getUuid()), HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>("Registration failed: " + e.getMessage(), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new MessagewithUUID("Registration failed." + e.getMessage()),HttpStatus.BAD_REQUEST);
         }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody User loginRequest) {
-        return authService.authenticate(loginRequest.getUsername(), loginRequest.getPassword())
-                .<ResponseEntity<String>>map(user -> ResponseEntity.ok("Login successful for user: " + user.getUsername()))
-                .orElseGet(() -> new ResponseEntity<>("Invalid username or password", HttpStatus.UNAUTHORIZED));
+    public ResponseEntity<MessagewithUUID> login(@RequestBody User loginRequest) {
+        // Attempt to authenticate the user
+        Optional<User> authenticatedUserOptional = authService.authenticate(
+                loginRequest.getUsername(),
+                loginRequest.getPassword()
+        );
+
+        // Check if the Optional contains a user (authentication successful)
+        if (authenticatedUserOptional.isPresent()) {
+            User user = authenticatedUserOptional.get();
+            // Return the UUID with an HTTP 200 OK status
+            return new ResponseEntity<>(new MessagewithUUID("Login Successful.", user.getUuid()), HttpStatus.OK);
+        } else {
+            // Authentication failed, return an appropriate error response
+            // HttpStatus.UNAUTHORIZED (401) is the standard for failed authentication
+            return new ResponseEntity<>(new MessagewithUUID("Login failed."), HttpStatus.UNAUTHORIZED);
+            // You could also return a more detailed error message if needed,
+            // e.g., throw a custom exception or return a specific error body.
+        }
     }
 
     // Logout is implemented in Security Config
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<String> forgotPassword(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> request) {
         String email = request.get("email");
         if (email == null) {
             return ResponseEntity.badRequest().body("Email is required.");
         }
 
-        authService.generateResetToken(email);
+        Optional<String> tokenOptional = authService.generateResetToken(email);
 
-        // Return a generic message for security.
-        return ResponseEntity.ok("If an account with that email exists, a password reset process has been initiated.");
+        if (tokenOptional.isPresent()) {
+            // WARNING: This returns the token directly and is INSECURE for production.
+            return ResponseEntity.ok(
+                    Map.of(
+                            "message", "Token generated successfully",
+                            "resetToken", tokenOptional.get()
+                    )
+            );
+        } else {
+            return ResponseEntity.status(404).body("User with that email not found.");
+        }
     }
 
-    /**
-     * Endpoint 2: Resets the password using the token.
-     * POST /api/users/reset-password
-     * Expected Request Body: { "token": "uuid-token-string", "newPassword": "new-secure-password" }
-     */
     @PostMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestBody Map<String, String> request) {
         String token = request.get("token");

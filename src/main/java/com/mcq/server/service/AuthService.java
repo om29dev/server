@@ -41,26 +41,35 @@ public class AuthService {
         return Optional.empty();
     }
 
-    public boolean generateResetToken(String email) {
+// In your UserService or AuthService
+
+    public Optional<String> generateResetToken(String email) {
         Optional<User> userOptional = userRepository.findByEmail(email);
 
         if (userOptional.isPresent()) {
             User user = userOptional.get();
-            String token = UUID.randomUUID().toString();
-            // Token is valid for 24 hours
-            LocalDateTime expiryDate = LocalDateTime.now().plusHours(24);
 
-            user.setResetPasswordToken(token);
-            user.setTokenExpiryDate(expiryDate);
+            // 1. Generate a brand new, unique token.
+            // This implicitly "resets" the old token, replacing it in the database.
+            String newToken = UUID.randomUUID().toString();
+
+            // 2. Define a new expiry date (Token is valid for 24 hours).
+            LocalDateTime newExpiryDate = LocalDateTime.now().plusHours(24);
+
+            // 3. Update the user entity with the new token and expiry.
+            user.setResetPasswordToken(newToken);
+            user.setTokenExpiryDate(newExpiryDate);
+
+            // 4. Save the updated user object to persist the changes.
             userRepository.save(user);
 
-            // In a real application, you would now use a separate email service
-            // to send an email with a link containing this 'token'.
-            return true;
+            // 5. Return the new token.
+            return Optional.of(newToken);
         }
-        return false;
-    }
 
+        // Return empty if user is not found.
+        return Optional.empty();
+    }
     /**
      * Resets the user's password using a token.
      * @param token The reset token.
