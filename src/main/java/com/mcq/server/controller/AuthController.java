@@ -1,9 +1,13 @@
 package com.mcq.server.controller;
 
+import com.mcq.server.dto.LoginRequest;
 import com.mcq.server.model.User;
 import com.mcq.server.service.AuthService;
 import com.mcq.server.dto.MessagewithUUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +20,7 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @Autowired
     public AuthController(AuthService authService) {
         this.authService = authService;
     }
@@ -31,24 +36,38 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<MessagewithUUID> login(@RequestBody User loginRequest) {
-        // Attempt to authenticate the user
-        Optional<User> authenticatedUserOptional = authService.authenticate(
+    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+
+        // Authenticate the user using the UserService
+        // Replace with your actual authentication call
+        Optional<User> authenticatedUser = authService.authenticate(
                 loginRequest.getUsername(),
                 loginRequest.getPassword()
         );
 
-        // Check if the Optional contains a user (authentication successful)
-        if (authenticatedUserOptional.isPresent()) {
-            User user = authenticatedUserOptional.get();
-            // Return the UUID with an HTTP 200 OK status
-            return new ResponseEntity<>(new MessagewithUUID("Login Successful.", user.getUuid()), HttpStatus.OK);
+        if (authenticatedUser.isPresent()) {
+            // --- Implement Cookie Logic using Spring's ResponseCookie ---
+
+            // In a real application, you would generate a secure, short-lived JWT or Session ID here.
+            String sessionToken = authenticatedUser.get().getUuid().toString();
+
+            // 1. Create and configure the secure ResponseCookie 🍪
+            ResponseCookie springCookie = ResponseCookie.from("AUTH_TOKEN", sessionToken)
+                    .httpOnly(true)            // RECOMMENDED: Prevents client-side JavaScript access
+                    .secure(false)             // Set to 'true' in production with HTTPS
+                    .path("/")                 // Make the cookie available to all paths
+                    .maxAge(7 * 24 * 60 * 60)  // Set expiry to 7 days (in seconds)
+                    .sameSite("Lax")           // RECOMMENDED: Helps mitigate CSRF attacks (e.g., "Strict", "Lax", or "None")
+                    .build();
+
+            // 2. Build the ResponseEntity with the cookie in the Headers
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, springCookie.toString()) // Add the cookie header
+                    .body("Login successful. Authentication cookie set.");
+
         } else {
-            // Authentication failed, return an appropriate error response
-            // HttpStatus.UNAUTHORIZED (401) is the standard for failed authentication
-            return new ResponseEntity<>(new MessagewithUUID("Login failed."), HttpStatus.UNAUTHORIZED);
-            // You could also return a more detailed error message if needed,
-            // e.g., throw a custom exception or return a specific error body.
+            // Return an unauthorized response
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password.");
         }
     }
 

@@ -35,11 +35,13 @@ public class AuthService {
             User user = userOptional.get();
             // Check if the raw password matches the stored hashed password
             if (passwordEncoder.matches(rawPassword, user.getPassword())) {
-                return userOptional;
+                return Optional.of(user);
             }
         }
         return Optional.empty();
     }
+
+
 
 // In your UserService or AuthService
 
