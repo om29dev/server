@@ -3,7 +3,6 @@ package com.mcq.server.controller;
 import com.mcq.server.dto.UserDTO;
 import com.mcq.server.model.User;
 import com.mcq.server.repository.UserRepository;
-import com.mcq.server.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,8 +20,6 @@ public class UserController {
 
     @Autowired
     private UserRepository userRepository;
-    @Autowired
-    private UserService userService;
 
     @GetMapping
     public @ResponseBody Iterable<UserDTO> getAllUsers() {

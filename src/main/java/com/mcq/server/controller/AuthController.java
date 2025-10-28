@@ -2,7 +2,7 @@ package com.mcq.server.controller;
 
 import com.mcq.server.model.User;
 import com.mcq.server.service.AuthService;
-import com.mcq.server.service.UserService;
+import com.mcq.server.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,11 +14,9 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
-    private final UserService userService;
 
-    public AuthController(AuthService authService, UserService userService) {
+    public AuthController(AuthService authService) {
         this.authService = authService;
-        this.userService = userService;
     }
 
     @PostMapping("/register")
@@ -47,7 +45,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Email is required.");
         }
 
-        userService.generateResetToken(email);
+        authService.generateResetToken(email);
 
         // Return a generic message for security.
         return ResponseEntity.ok("If an account with that email exists, a password reset process has been initiated.");
@@ -67,7 +65,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Token and newPassword are required.");
         }
 
-        boolean success = userService.resetPassword(token, newPassword);
+        boolean success = authService.resetPassword(token, newPassword);
 
         if (success) {
             return ResponseEntity.ok("Password has been successfully reset.");
