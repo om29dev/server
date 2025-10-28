@@ -1,6 +1,8 @@
 package com.mcq.server.model;
 
 import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -29,7 +31,10 @@ public class User {
     @Enumerated(EnumType.STRING) // Stores the Enum name (e.g., "STUDENT") as a String in the DB
     @Column(nullable = false)
     private UserRole role;
-    // --------------------------
+
+    private String resetPasswordToken;
+
+    private LocalDateTime tokenExpiryDate;
 
     public User() {
     }
@@ -94,5 +99,21 @@ public class User {
 
     public void setRole(UserRole role) {
         this.role = role;
+    }
+
+    public String getResetPasswordToken() {
+        return resetPasswordToken;
+    }
+
+    public void setResetPasswordToken(String resetPasswordToken) {
+        this.resetPasswordToken = resetPasswordToken;
+    }
+
+    public LocalDateTime getTokenExpiryDate() {
+        return tokenExpiryDate;
+    }
+
+    public void setTokenExpiryDate(LocalDateTime tokenExpiryDate) {
+        this.tokenExpiryDate = tokenExpiryDate;
     }
 }

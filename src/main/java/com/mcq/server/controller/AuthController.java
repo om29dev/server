@@ -32,4 +32,6 @@ public class AuthController {
                 .<ResponseEntity<String>>map(user -> ResponseEntity.ok("Login successful for user: " + user.getUsername()))
                 .orElseGet(() -> new ResponseEntity<>("Invalid username or password", HttpStatus.UNAUTHORIZED));
     }
+
+    // Logout is implemented in Security Config
 }
