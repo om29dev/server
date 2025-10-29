@@ -1,5 +1,6 @@
 package com.mcq.server.controller;
 
+import com.mcq.server.dto.ClassroomDTO;
 import com.mcq.server.model.Classroom;
 import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
@@ -75,8 +76,7 @@ public class ClassroomController {
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")
     public ResponseEntity<Classroom> getClassroomByCode(@PathVariable String code) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
-        return classroomOptional.map(classroom -> new ResponseEntity<>(classroom, HttpStatus.OK))
-                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+        return classroomOptional.map(classroom -> new ResponseEntity<>(classroom, HttpStatus.OK)).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PostMapping("/{code}/join")
@@ -134,13 +134,18 @@ public class ClassroomController {
             return new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND);
         }
     }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER')")
-    public ResponseEntity<Classroom> createClassroom(@RequestBody Map<String, String> request, Authentication authentication) {
+    public ResponseEntity<?> createClassroom(@RequestBody Map<String, String> request, Authentication authentication) {
         try {
             String classroomname = request.get("classroomname");
             if (classroomname == null || classroomname.trim().isEmpty()) {
-                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+                return new ResponseEntity<>("Classroom name cannot be empty.", HttpStatus.BAD_REQUEST);
+            }
+
+            if (classroomRepository.findByClassroomnameIgnoreCase(classroomname).isPresent()) {
+                return new ResponseEntity<>("Classroom with this name already exists.", HttpStatus.CONFLICT);
             }
 
             Classroom classroom = new Classroom();
