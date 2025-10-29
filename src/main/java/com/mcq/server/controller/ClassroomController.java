@@ -3,6 +3,7 @@ package com.mcq.server.controller;
 import com.mcq.server.model.Classroom;
 import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
+import com.mcq.server.repository.MyUserDetails;
 import com.mcq.server.service.UniqueCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -23,12 +24,17 @@ public class ClassroomController {
     @Autowired
     private ClassroomRepository classroomRepository;
 
+    @Autowired
+    private UniqueCodeGenerator uniqueCodeGenerator; // Autowire the service
+
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")
     public ResponseEntity<?> getClassrooms(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String filter,
             Authentication authentication) {
+
+        // Search by classroom name (case insensitive)
         if (name != null && !name.isEmpty()) {
             Optional<Classroom> classroomOptional = classroomRepository.findByClassroomnameIgnoreCase(name);
             return classroomOptional
@@ -36,12 +42,12 @@ public class ClassroomController {
                     .orElseGet(() -> new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND));
         }
 
+        // Filter for only the classrooms relevant to the current user
         if ("mine".equalsIgnoreCase(filter)) {
             String username = authentication.getName();
             Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
             List<Classroom> classrooms;
-
-            if (authorities.stream().anyMatch(a -> a.getAuthority().equals("TEACHER"))) {
+            if (authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_TEACHER"))) {
                 classrooms = classroomRepository.findAll().stream()
                         .filter(c -> c.getClassroomteacher().getUsername().equals(username))
                         .collect(Collectors.toList());
@@ -51,16 +57,22 @@ public class ClassroomController {
             return new ResponseEntity<>(classrooms, HttpStatus.OK);
         }
 
-        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ADMIN"))) {
+        // Admins see all classrooms
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
             List<Classroom> classrooms = classroomRepository.findAll();
             return new ResponseEntity<>(classrooms, HttpStatus.OK);
         }
 
-        return new ResponseEntity<>("Access Denied: Please specify a valid parameter (e.g., ?filter=mine or ?name=...).", HttpStatus.FORBIDDEN);
+        // If no valid parameter specified
+        return new ResponseEntity<>(
+                "Access Denied: Please specify a valid parameter (e.g., ?filter=mine or ?name=...).",
+                HttpStatus.FORBIDDEN
+        );
     }
 
+
     @GetMapping("/{code}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")
     public ResponseEntity<Classroom> getClassroomByCode(@PathVariable String code) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
         return classroomOptional.map(classroom -> new ResponseEntity<>(classroom, HttpStatus.OK))
@@ -68,7 +80,7 @@ public class ClassroomController {
     }
 
     @PostMapping("/{code}/join")
-    @PreAuthorize("hasRole('STUDENT')")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<String> joinClassroom(@PathVariable String code, Authentication authentication) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
         if (classroomOptional.isPresent()) {
@@ -87,7 +99,7 @@ public class ClassroomController {
     }
 
     @DeleteMapping("/{code}/leave")
-    @PreAuthorize("hasRole('STUDENT')")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<String> leaveClassroom(@PathVariable String code, Authentication authentication) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
         if (classroomOptional.isPresent()) {
@@ -106,7 +118,7 @@ public class ClassroomController {
     }
 
     @DeleteMapping("/{code}/remove/{studentUsername}")
-    @PreAuthorize("hasRole('TEACHER') and @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
+    @PreAuthorize("hasRole('ROLE_TEACHER') and @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<String> removeStudentFromClassroom(@PathVariable String code, @PathVariable String studentUsername) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
         if (classroomOptional.isPresent()) {
@@ -123,7 +135,7 @@ public class ClassroomController {
         }
     }
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER')")
     public ResponseEntity<Classroom> createClassroom(@RequestBody Map<String, String> request, Authentication authentication) {
         try {
             String classroomname = request.get("classroomname");
@@ -135,12 +147,12 @@ public class ClassroomController {
             classroom.setClassroomname(classroomname);
 
             // Generate the unique code
-            UniqueCodeGenerator uniqueCodeGenerator = new UniqueCodeGenerator();
             String code = uniqueCodeGenerator.generateUniqueCode();
             classroom.setCode(code);
 
-            // Get current user (admin/teacher) from authentication principal
-            User currentUser = (User) authentication.getPrincipal();
+            // Correctly get the User object from the principal
+            MyUserDetails userDetails = (MyUserDetails) authentication.getPrincipal();
+            User currentUser = userDetails.getUser();
             classroom.setClassroomteacher(currentUser);
 
             // Students should start empty
@@ -158,7 +170,7 @@ public class ClassroomController {
 
 
     @PutMapping("/{code}")
-    @PreAuthorize("hasRole('ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<Classroom> updateClassroomByCode(@PathVariable String code, @RequestBody Classroom classroomDetails) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
 
@@ -175,7 +187,7 @@ public class ClassroomController {
     }
 
     @DeleteMapping("/{code}")
-    @PreAuthorize("hasRole('ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<HttpStatus> deleteClassroomByCode(@PathVariable String code) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
 

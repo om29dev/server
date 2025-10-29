@@ -45,10 +45,4 @@ public class SecurityConfig {
                 );
         return http.build();
     }
-
-    @Bean
-    public GrantedAuthorityDefaults grantedAuthorityDefaults() {
-        // Remove the default "ROLE_" prefix
-        return new GrantedAuthorityDefaults(""); // No prefix
-    }
 }

@@ -14,6 +14,12 @@ public class MyUserDetails implements UserDetails {
     public MyUserDetails(User user) {
         this.user = user;
     }
+
+    // Add this getter method
+    public User getUser() {
+        return user;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(user.getRole().toString()));
