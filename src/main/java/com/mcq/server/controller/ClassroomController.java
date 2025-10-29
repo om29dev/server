@@ -5,78 +5,150 @@ import com.mcq.server.repository.ClassroomRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/classrooms") // Base URL for all endpoints in this controller
-@CrossOrigin(origins = "*") // Adjust origins as needed for security
+@RequestMapping("/api/classrooms")
+@CrossOrigin(origins = "*")
 public class ClassroomController {
 
     @Autowired
     private ClassroomRepository classroomRepository;
 
-    // GET /api/classrooms - Retrieve all classrooms
     @GetMapping
-    public ResponseEntity<List<Classroom>> getAllClassrooms() {
-        List<Classroom> classrooms = classroomRepository.findAll();
-        return new ResponseEntity<>(classrooms, HttpStatus.OK);
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER', 'STUDENT')")
+    public ResponseEntity<?> getClassrooms(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String filter,
+            Authentication authentication) {
+
+        if (name != null && !name.isEmpty()) {
+            Optional<Classroom> classroomOptional = classroomRepository.findByClassroomnameIgnoreCase(name);
+            return classroomOptional
+                    .<ResponseEntity<?>>map(classroom -> new ResponseEntity<>(classroom, HttpStatus.OK))
+                    .orElseGet(() -> new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND));
+        }
+
+        if ("mine".equalsIgnoreCase(filter)) {
+            String username = authentication.getName();
+            Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+            List<Classroom> classrooms;
+
+            if (authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_TEACHER"))) {
+                classrooms = classroomRepository.findAll().stream()
+                        .filter(c -> c.getClassroomteacher().getUsername().equals(username))
+                        .collect(Collectors.toList());
+            } else {
+                classrooms = classroomRepository.findAllByClassroomstudentsContaining(username);
+            }
+            return new ResponseEntity<>(classrooms, HttpStatus.OK);
+        }
+
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            List<Classroom> classrooms = classroomRepository.findAll();
+            return new ResponseEntity<>(classrooms, HttpStatus.OK);
+        }
+
+        return new ResponseEntity<>("Access Denied: Please specify a valid parameter (e.g., ?filter=mine or ?name=...).", HttpStatus.FORBIDDEN);
     }
 
-    // GET /api/classrooms/{code} - Retrieve a classroom by its unique code (case-sensitive)
     @GetMapping("/{code}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER', 'STUDENT')")
     public ResponseEntity<Classroom> getClassroomByCode(@PathVariable String code) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
+        return classroomOptional.map(classroom -> new ResponseEntity<>(classroom, HttpStatus.OK))
+                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    }
+
+    @PostMapping("/{code}/join")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<String> joinClassroom(@PathVariable String code, Authentication authentication) {
+        Optional<Classroom> classroomOptional = classroomRepository.findById(code);
         if (classroomOptional.isPresent()) {
-            return new ResponseEntity<>(classroomOptional.get(), HttpStatus.OK);
+            Classroom classroom = classroomOptional.get();
+            String studentUsername = authentication.getName();
+            if (!classroom.getClassroomstudents().contains(studentUsername)) {
+                classroom.getClassroomstudents().add(studentUsername);
+                classroomRepository.save(classroom);
+                return new ResponseEntity<>("Successfully joined the classroom.", HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>("You are already enrolled in this classroom.", HttpStatus.BAD_REQUEST);
+            }
         } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND);
         }
     }
 
-    // GET /api/classrooms/name?q={name} - Retrieve a classroom by its unique name (case-insensitive)
-    @GetMapping("/name")
-    public ResponseEntity<Classroom> getClassroomByName(@RequestParam String q) { // @RequestParam for query param 'q'
-        Optional<Classroom> classroomOptional = classroomRepository.findByClassroomnameIgnoreCase(q); // Use the new method
+    @DeleteMapping("/{code}/leave")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<String> leaveClassroom(@PathVariable String code, Authentication authentication) {
+        Optional<Classroom> classroomOptional = classroomRepository.findById(code);
         if (classroomOptional.isPresent()) {
-            return new ResponseEntity<>(classroomOptional.get(), HttpStatus.OK);
+            Classroom classroom = classroomOptional.get();
+            String studentUsername = authentication.getName();
+            if (classroom.getClassroomstudents().contains(studentUsername)) {
+                classroom.getClassroomstudents().remove(studentUsername);
+                classroomRepository.save(classroom);
+                return new ResponseEntity<>("Successfully left the classroom.", HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>("You are not enrolled in this classroom.", HttpStatus.BAD_REQUEST);
+            }
         } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND);
         }
     }
 
-    // POST /api/classrooms - Create a new classroom
+    @DeleteMapping("/{code}/remove/{studentUsername}")
+    @PreAuthorize("hasRole('TEACHER') and @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
+    public ResponseEntity<String> removeStudentFromClassroom(@PathVariable String code, @PathVariable String studentUsername) {
+        Optional<Classroom> classroomOptional = classroomRepository.findById(code);
+        if (classroomOptional.isPresent()) {
+            Classroom classroom = classroomOptional.get();
+            if (classroom.getClassroomstudents().contains(studentUsername)) {
+                classroom.getClassroomstudents().remove(studentUsername);
+                classroomRepository.save(classroom);
+                return new ResponseEntity<>("Successfully removed the student.", HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>("Student is not enrolled in this classroom.", HttpStatus.BAD_REQUEST);
+            }
+        } else {
+            return new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND);
+        }
+    }
+
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ResponseEntity<Classroom> createClassroom(@RequestBody Classroom classroom) {
         try {
-            // Ensure classroomstudents list is initialized if null (optional, depending on your logic)
             if (classroom.getClassroomstudents() == null) {
-                classroom.setClassroomstudents(java.util.Collections.emptyList()); // Or handle as needed
+                classroom.setClassroomstudents(java.util.Collections.emptyList());
             }
             Classroom savedClassroom = classroomRepository.save(classroom);
             return new ResponseEntity<>(savedClassroom, HttpStatus.CREATED);
         } catch (Exception e) {
-            // Log the error (consider using a logger)
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    // PUT /api/classrooms/{code} - Update an existing classroom using its unique code from the path (case-sensitive)
     @PutMapping("/{code}")
+    @PreAuthorize("hasRole('ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<Classroom> updateClassroomByCode(@PathVariable String code, @RequestBody Classroom classroomDetails) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
 
         if (classroomOptional.isPresent()) {
             Classroom classroom = classroomOptional.get();
             classroom.setClassroomname(classroomDetails.getClassroomname());
-            // Potentially prevent changing the code itself if it's meant to be immutable for this endpoint
-            // classroom.setCode(classroomDetails.getCode()); // Uncomment if code updates are allowed here
             classroom.setClassroomteacher(classroomDetails.getClassroomteacher());
             classroom.setClassroomstudents(classroomDetails.getClassroomstudents());
-
             Classroom updatedClassroom = classroomRepository.save(classroom);
             return new ResponseEntity<>(updatedClassroom, HttpStatus.OK);
         } else {
@@ -84,14 +156,13 @@ public class ClassroomController {
         }
     }
 
-    // DELETE /api/classrooms/{code} - Delete a classroom using its unique code from the path (case-sensitive)
     @DeleteMapping("/{code}")
+    @PreAuthorize("hasRole('ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<HttpStatus> deleteClassroomByCode(@PathVariable String code) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
 
         if (classroomOptional.isPresent()) {
-            Classroom classroom = classroomOptional.get();
-            classroomRepository.delete(classroom); // Delete the found entity object
+            classroomRepository.delete(classroomOptional.get());
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
