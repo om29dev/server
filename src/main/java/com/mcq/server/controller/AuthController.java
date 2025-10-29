@@ -2,13 +2,16 @@ package com.mcq.server.controller;
 
 import com.mcq.server.dto.LoginRequest;
 import com.mcq.server.model.User;
+import com.mcq.server.repository.MyUserDetails;
 import com.mcq.server.service.AuthService;
 import com.mcq.server.dto.MessagewithUUID;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -36,24 +39,26 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
-
-        // Authenticate the user using the UserService
-        // Replace with your actual authentication call
-        Optional<User> authenticatedUser = authService.authenticate(
-                loginRequest.getUsername(),
-                loginRequest.getPassword()
-        );
-
+    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
+        Optional<User> authenticatedUser = authService.authenticate(loginRequest.getUsername(), loginRequest.getPassword());
         if (authenticatedUser.isPresent()) {
-            // Login successful - return success response without cookies
+            // Store user info in session
+            request.getSession(true).setAttribute("user", authenticatedUser.get());
+            // Session cookie is automatically handled by the servlet container, no need to set manually
+            User user = authenticatedUser.get();
+// Convert user to UserDetails if needed (implement getAuthorities and similar methods)
+            UserDetails userDetails = new MyUserDetails(user);
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+            request.getSession(true).setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
             return ResponseEntity.ok().body("Login successful.");
-
         } else {
-            // Return an unauthorized response
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password.");
         }
     }
+
+
     // Logout is implemented in Security Config
 
     @PostMapping("/forgot-password")

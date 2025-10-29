@@ -29,11 +29,14 @@ public class UserController {
                 .collect(Collectors.toList());
     }
 
-    @GetMapping(path = "/{uuid}")
-    public ResponseEntity<User> getUserById(@PathVariable UUID uuid) {
-        Optional<User> userData = userRepository.findById(uuid);
-        return userData.map(user -> new ResponseEntity<>(user, HttpStatus.OK)).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    @GetMapping(path = "/{username}")
+    public ResponseEntity<UserDTO> getUserByUsername(@PathVariable String username) {
+        Optional<User> userData = userRepository.findByUsername(username);
+        return userData
+                .map(user -> new ResponseEntity<>(new UserDTO(user), HttpStatus.OK))
+                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
+
 
 
 }

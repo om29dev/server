@@ -1,7 +1,9 @@
 package com.mcq.server.controller;
 
 import com.mcq.server.model.Classroom;
+import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
+import com.mcq.server.service.UniqueCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,9 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -29,7 +29,6 @@ public class ClassroomController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String filter,
             Authentication authentication) {
-
         if (name != null && !name.isEmpty()) {
             Optional<Classroom> classroomOptional = classroomRepository.findByClassroomnameIgnoreCase(name);
             return classroomOptional
@@ -42,7 +41,7 @@ public class ClassroomController {
             Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
             List<Classroom> classrooms;
 
-            if (authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_TEACHER"))) {
+            if (authorities.stream().anyMatch(a -> a.getAuthority().equals("TEACHER"))) {
                 classrooms = classroomRepository.findAll().stream()
                         .filter(c -> c.getClassroomteacher().getUsername().equals(username))
                         .collect(Collectors.toList());
@@ -52,7 +51,7 @@ public class ClassroomController {
             return new ResponseEntity<>(classrooms, HttpStatus.OK);
         }
 
-        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ADMIN"))) {
             List<Classroom> classrooms = classroomRepository.findAll();
             return new ResponseEntity<>(classrooms, HttpStatus.OK);
         }
@@ -123,21 +122,40 @@ public class ClassroomController {
             return new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND);
         }
     }
-
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ResponseEntity<Classroom> createClassroom(@RequestBody Classroom classroom) {
+    public ResponseEntity<Classroom> createClassroom(@RequestBody Map<String, String> request, Authentication authentication) {
         try {
-            if (classroom.getClassroomstudents() == null) {
-                classroom.setClassroomstudents(java.util.Collections.emptyList());
+            String classroomname = request.get("classroomname");
+            if (classroomname == null || classroomname.trim().isEmpty()) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
             }
+
+            Classroom classroom = new Classroom();
+            classroom.setClassroomname(classroomname);
+
+            // Generate the unique code
+            UniqueCodeGenerator uniqueCodeGenerator = new UniqueCodeGenerator();
+            String code = uniqueCodeGenerator.generateUniqueCode();
+            classroom.setCode(code);
+
+            // Get current user (admin/teacher) from authentication principal
+            User currentUser = (User) authentication.getPrincipal();
+            classroom.setClassroomteacher(currentUser);
+
+            // Students should start empty
+            classroom.setClassroomstudents(Collections.emptyList());
+
+            // Save classroom
             Classroom savedClassroom = classroomRepository.save(classroom);
             return new ResponseEntity<>(savedClassroom, HttpStatus.CREATED);
+
         } catch (Exception e) {
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
 
     @PutMapping("/{code}")
     @PreAuthorize("hasRole('ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
