@@ -42,11 +42,8 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         Optional<User> authenticatedUser = authService.authenticate(loginRequest.getUsername(), loginRequest.getPassword());
         if (authenticatedUser.isPresent()) {
-            // Store user info in session
             request.getSession(true).setAttribute("user", authenticatedUser.get());
-            // Session cookie is automatically handled by the servlet container, no need to set manually
             User user = authenticatedUser.get();
-// Convert user to UserDetails if needed (implement getAuthorities and similar methods)
             UserDetails userDetails = new MyUserDetails(user);
             UsernamePasswordAuthenticationToken authToken =
                     new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());

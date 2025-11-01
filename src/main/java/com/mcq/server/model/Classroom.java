@@ -29,6 +29,9 @@ public class Classroom {
     @Column(name = "student_username", length = 50)
     private List<String> classroomstudents = new ArrayList<>();
 
+    @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Test> tests = new ArrayList<>();
+
     public Classroom() {}
 
     public String getCode() {
@@ -61,5 +64,13 @@ public class Classroom {
 
     public void setClassroomstudents(List<String> classroomstudents) {
         this.classroomstudents = classroomstudents;
+    }
+
+    public List<Test> getTests() {
+        return tests;
+    }
+
+    public void setTests(List<Test> tests) {
+        this.tests = tests;
     }
 }

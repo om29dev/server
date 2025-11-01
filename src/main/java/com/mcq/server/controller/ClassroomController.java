@@ -38,9 +38,7 @@ public class ClassroomController {
         // Search by classroom name (case insensitive)
         if (name != null && !name.isEmpty()) {
             Optional<Classroom> classroomOptional = classroomRepository.findByClassroomnameIgnoreCase(name);
-            return classroomOptional
-                    .<ResponseEntity<?>>map(classroom -> new ResponseEntity<>(classroom, HttpStatus.OK))
-                    .orElseGet(() -> new ResponseEntity<>("Classroom not found.", HttpStatus.NOT_FOUND));
+            return classroomOptional.map(classroom -> new ResponseEntity<>(new ClassroomDTO(classroom), HttpStatus.OK)).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
         }
 
         // Filter for only the classrooms relevant to the current user
@@ -55,28 +53,22 @@ public class ClassroomController {
             } else {
                 classrooms = classroomRepository.findAllByClassroomstudentsContaining(username);
             }
-            return new ResponseEntity<>(classrooms, HttpStatus.OK);
+            List<ClassroomDTO> classroomDTOs = classrooms.stream().map(ClassroomDTO::new).collect(Collectors.toList());
+            return new ResponseEntity<>(classroomDTOs, HttpStatus.OK);
         }
 
-        // Admins see all classrooms
-        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
-            List<Classroom> classrooms = classroomRepository.findAll();
-            return new ResponseEntity<>(classrooms, HttpStatus.OK);
-        }
+        List<Classroom> classrooms = classroomRepository.findAll();
+        List<ClassroomDTO> classroomDTOs = classrooms.stream().map(ClassroomDTO::new).collect(Collectors.toList());
+        return new ResponseEntity<>(classroomDTOs, HttpStatus.OK);
 
-        // If no valid parameter specified
-        return new ResponseEntity<>(
-                "Access Denied: Please specify a valid parameter (e.g., ?filter=mine or ?name=...).",
-                HttpStatus.FORBIDDEN
-        );
     }
 
 
     @GetMapping("/{code}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")
-    public ResponseEntity<Classroom> getClassroomByCode(@PathVariable String code) {
+    public ResponseEntity<ClassroomDTO> getClassroomByCode(@PathVariable String code) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
-        return classroomOptional.map(classroom -> new ResponseEntity<>(classroom, HttpStatus.OK)).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+        return classroomOptional.map(classroom -> new ResponseEntity<>(new ClassroomDTO(classroom), HttpStatus.OK)).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PostMapping("/{code}/join")
@@ -176,7 +168,7 @@ public class ClassroomController {
 
     @PutMapping("/{code}")
     @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#code).get().getClassroomteacher().getUsername() == authentication.name")
-    public ResponseEntity<Classroom> updateClassroomByCode(@PathVariable String code, @RequestBody Classroom classroomDetails) {
+    public ResponseEntity<ClassroomDTO> updateClassroomByCode(@PathVariable String code, @RequestBody Classroom classroomDetails) {
         Optional<Classroom> classroomOptional = classroomRepository.findById(code);
 
         if (classroomOptional.isPresent()) {
@@ -185,7 +177,7 @@ public class ClassroomController {
             classroom.setClassroomteacher(classroomDetails.getClassroomteacher());
             classroom.setClassroomstudents(classroomDetails.getClassroomstudents());
             Classroom updatedClassroom = classroomRepository.save(classroom);
-            return new ResponseEntity<>(updatedClassroom, HttpStatus.OK);
+            return new ResponseEntity<>(new ClassroomDTO(updatedClassroom), HttpStatus.OK);
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
