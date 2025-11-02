@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Table(name = "classrooms")
 public class Classroom {
 
     @Id
@@ -26,7 +27,7 @@ public class Classroom {
             name = "classroom_students",
             joinColumns = @JoinColumn(name = "classroom_code")
     )
-    @Column(name = "student_username", length = 50)
+    @Column(name = "student_username")
     private List<String> classroomstudents = new ArrayList<>();
 
     @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

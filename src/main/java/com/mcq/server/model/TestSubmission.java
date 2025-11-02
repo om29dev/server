@@ -1,7 +1,6 @@
 package com.mcq.server.model;
 
 import jakarta.persistence.*;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,9 +12,13 @@ public class TestSubmission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "test_id", nullable = false)
-    private Test test;
+    // Store test name directly (instead of test_id foreign key)
+    @Column(name = "testname", nullable = false)
+    private String testname;
+
+    // Also store classroom code (so you can identify where this test belongs)
+    @Column(name = "classroom_code", nullable = false)
+    private String classroomCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_username", nullable = false)
@@ -39,12 +42,20 @@ public class TestSubmission {
         this.id = id;
     }
 
-    public Test getTest() {
-        return test;
+    public String getTestname() {
+        return testname;
     }
 
-    public void setTest(Test test) {
-        this.test = test;
+    public void setTestname(String testname) {
+        this.testname = testname;
+    }
+
+    public String getClassroomCode() {
+        return classroomCode;
+    }
+
+    public void setClassroomCode(String classroomCode) {
+        this.classroomCode = classroomCode;
     }
 
     public User getUser() {

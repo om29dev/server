@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
-// All routes in this controller are now prefixed with this
 @RequestMapping("/api/classrooms/{classroomCode}/tests")
 public class TestController {
 
@@ -37,38 +36,36 @@ public class TestController {
                                         @RequestParam("pdfFile") MultipartFile pdfFile,
                                         @RequestParam("correctAnswers") List<String> correctAnswers) {
         try {
-            // 1. Check if classroom exists
             Optional<Classroom> classroomOpt = classroomRepository.findById(classroomCode);
             if (classroomOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Classroom not found.");
             }
 
-            // 2. NEW: Check if testname is unique *for this classroom*
             if (testRepository.existsByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode)) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("A test with this name already exists in this classroom.");
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body("A test with this name already exists in this classroom.");
             }
 
-            // 3. Save PDF and create test
             String pdfPath = savePDFService.savePDF(pdfFile);
 
             Test test = new Test();
             test.setTestname(testname);
             test.setQuestionsPdfPath(pdfPath);
             test.setCorrectAnswers(correctAnswers);
-            test.setClassroom(classroomOpt.get()); // Use the smart setter
+            test.setClassroom(classroomOpt.get());
 
             Test savedTest = testRepository.save(test);
             return new ResponseEntity<>(savedTest, HttpStatus.CREATED);
 
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating test: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error creating test: " + e.getMessage());
         }
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")
     public ResponseEntity<?> getTestsByClassroom(@PathVariable String classroomCode, Authentication authentication) {
-
         Optional<Classroom> classroomOpt = classroomRepository.findById(classroomCode);
         if (classroomOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Classroom not found.");
@@ -76,60 +73,128 @@ public class TestController {
 
         String username = authentication.getName();
         Classroom classroom = classroomOpt.get();
+
         boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isTeacher = classroom.getClassroomteacher().getUsername().equals(username);
         boolean isStudent = classroom.getClassroomstudents().contains(username);
 
         if (!isAdmin && !isTeacher && !isStudent) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You are not authorized to view tests for this classroom.");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("You are not authorized to view tests for this classroom.");
         }
 
         List<Test> tests = testRepository.findByClassroomCode(classroomCode);
         return ResponseEntity.ok(tests);
     }
-
-    @GetMapping("/{testId}")
+    @GetMapping("/{testname}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")
-    public ResponseEntity<?> getTestById(@PathVariable String classroomCode,
-                                         @PathVariable Long testId,
-                                         Authentication authentication) {
+    public ResponseEntity<?> getTestByName(@PathVariable String classroomCode,
+                                           @PathVariable String testname,
+                                           Authentication authentication) {
 
-        Optional<Test> testOpt = testRepository.findById(testId);
-        if (testOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
+        // ✅ Check if classroom exists
+        Optional<Classroom> classroomOpt = classroomRepository.findById(classroomCode);
+        if (classroomOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Classroom not found.");
         }
 
-        Test test = testOpt.get();
-
-        if (!test.getClassroom().getCode().equals(classroomCode)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found in this classroom.");
-        }
-
+        Classroom classroom = classroomOpt.get();
         String username = authentication.getName();
-        Classroom classroom = test.getClassroom();
+
+        // ✅ Role verification
         boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isTeacher = classroom.getClassroomteacher().getUsername().equals(username);
         boolean isStudent = classroom.getClassroomstudents().contains(username);
 
         if (!isAdmin && !isTeacher && !isStudent) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You are not authorized to view this test.");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("You are not authorized to view this test.");
         }
 
-        return ResponseEntity.ok(test);
+        // ✅ Find test by name and classroom code
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Test not found with that name in this classroom.");
+        }
+
+        return ResponseEntity.ok(testOpt.get());
     }
 
-    @DeleteMapping("/{testId}")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or @testRepository.findById(#testId).get().getClassroom().getClassroomteacher().getUsername() == authentication.name")
-    public ResponseEntity<?> deleteTest(@PathVariable String classroomCode, @PathVariable Long testId) {
+    // 🟥 Delete Test by Name (for teacher of that classroom or admin)
+    @DeleteMapping("/{testname}")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
+    public ResponseEntity<?> deleteTestByName(@PathVariable String classroomCode,
+                                              @PathVariable String testname,
+                                              Authentication authentication) {
 
-        Optional<Test> testOpt = testRepository.findById(testId);
-        if (testOpt.isEmpty() || !testOpt.get().getClassroom().getCode().equals(classroomCode)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found in this classroom.");
+        String username = authentication.getName();
+
+        // ✅ Find test
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Test not found in this classroom.");
         }
 
-        testRepository.deleteById(testId);
+        Test test = testOpt.get();
+        Classroom classroom = test.getClassroom();
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isTeacher = classroom.getClassroomteacher().getUsername().equals(username);
+
+        if (!isAdmin && !isTeacher) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("You are not authorized to delete this test.");
+        }
+
+        testRepository.delete(test);
         return ResponseEntity.noContent().build();
+    }
+
+
+    // 🟩 START TEST
+    @PostMapping("/{testname}/start")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
+    public ResponseEntity<?> startTest(@PathVariable String classroomCode,
+                                       @PathVariable String testname) {
+
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
+        }
+
+        Test test = testOpt.get();
+        if ("ACTIVE".equals(test.getStatus())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Test is already active.");
+        }
+
+        test.setStatus("ACTIVE");
+        testRepository.save(test);
+        return ResponseEntity.ok("Test started successfully.");
+    }
+
+    // 🟥 END TEST
+    @PostMapping("/{testname}/end")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
+    public ResponseEntity<?> endTest(@PathVariable String classroomCode,
+                                     @PathVariable String testname) {
+
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
+        }
+
+        Test test = testOpt.get();
+        if (!"ACTIVE".equals(test.getStatus())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Cannot end a test that is not active.");
+        }
+
+        test.setStatus("ENDED");
+        testRepository.save(test);
+        return ResponseEntity.ok("Test ended successfully. Students can now submit answers.");
     }
 }

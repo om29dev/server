@@ -6,6 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Table(
+        name = "tests",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"classroom_code", "testname"})
+        }
+)
 public class Test {
 
     @Id
@@ -23,15 +29,18 @@ public class Test {
             name = "test_correct_answers",
             joinColumns = @JoinColumn(name = "test_id")
     )
-    @Column(name = "answer", length = 500)
+    @Column(name = "answers")
     private List<String> correctAnswers = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "classroom_code", nullable = false)
     private Classroom classroom;
 
-    @OneToMany(mappedBy = "test", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "tests", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TestSubmission> testSubmissions = new ArrayList<>();
+
+    @Column(nullable = false)
+    private String status = "NOT_STARTED";
 
     public Test() {}
 
@@ -81,5 +90,13 @@ public class Test {
 
     public void setTestSubmissions(List<TestSubmission> testSubmissions) {
         this.testSubmissions = testSubmissions;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }
