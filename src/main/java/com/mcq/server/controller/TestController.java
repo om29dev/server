@@ -1,5 +1,6 @@
 package com.mcq.server.controller;
 
+import com.mcq.server.dto.TestDTO; // <-- IMPORT THE NEW DTO
 import com.mcq.server.model.Classroom;
 import com.mcq.server.model.Test;
 import com.mcq.server.repository.ClassroomRepository;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors; // <-- IMPORT COLLECTORS
 
 @RestController
 @RequestMapping("/api/classrooms/{classroomCode}/tests")
@@ -60,7 +62,10 @@ public class TestController {
             test.setClassroom(classroomOpt.get());
 
             Test savedTest = testRepository.save(test);
-            return new ResponseEntity<>(savedTest, HttpStatus.CREATED);
+
+            // --- FIX ---
+            // Return the DTO, not the entity
+            return new ResponseEntity<>(new TestDTO(savedTest), HttpStatus.CREATED);
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -90,7 +95,14 @@ public class TestController {
         }
 
         List<Test> tests = testRepository.findByClassroomCode(classroomCode);
-        return ResponseEntity.ok(tests);
+
+        // --- FIX ---
+        // Convert List<Test> to List<TestDTO>
+        List<TestDTO> testDTOs = tests.stream()
+                .map(TestDTO::new)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(testDTOs);
     }
     @GetMapping("/{testname}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")
@@ -125,7 +137,11 @@ public class TestController {
                     .body("Test not found with that name in this classroom.");
         }
 
-        return ResponseEntity.ok(testOpt.get());
+        // --- FIX ---
+        // Convert Test to TestDTO
+        TestDTO testDTO = new TestDTO(testOpt.get());
+
+        return ResponseEntity.ok(testDTO);
     }
 
     // 🟥 Delete Test by Name (for teacher of that classroom or admin)

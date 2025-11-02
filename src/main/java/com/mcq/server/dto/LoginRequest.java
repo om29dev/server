@@ -1,19 +1,19 @@
 package com.mcq.server.dto;
 
 public class LoginRequest {
-    private String Username;
-    private String Password;
+    private String username; // <-- FIXED (was Username)
+    private String password; // <-- FIXED (was Password)
 
     public LoginRequest(String username, String password) {
-        this.Username = username;
-        this.Password = password;
+        this.username = username;
+        this.password = password;
     }
 
     public String getUsername() {
-        return Username;
+        return username;
     }
 
     public String getPassword() {
-        return Password;
+        return password;
     }
 }
