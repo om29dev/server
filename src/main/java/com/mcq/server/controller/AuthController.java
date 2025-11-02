@@ -4,7 +4,6 @@ import com.mcq.server.dto.LoginRequest;
 import com.mcq.server.model.User;
 import com.mcq.server.repository.MyUserDetails;
 import com.mcq.server.service.AuthService;
-import com.mcq.server.dto.MessagewithUUID;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -29,12 +28,12 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<MessagewithUUID> register(@RequestBody User newUser) {
+    public ResponseEntity<String> register(@RequestBody User newUser) {
         try {
-            User user = authService.registerUser(newUser);
-            return new ResponseEntity<>(new MessagewithUUID("Registration Successful.", user.getUuid()), HttpStatus.CREATED);
+            authService.registerUser(newUser);  // Register the user
+            return new ResponseEntity<>("Registration Successful.", HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new MessagewithUUID("Registration failed." + e.getMessage()),HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>("Registration failed: " + e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
 
