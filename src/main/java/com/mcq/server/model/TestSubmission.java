@@ -12,13 +12,12 @@ public class TestSubmission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Store test name directly (instead of test_id foreign key)
-    @Column(name = "testname", nullable = false)
-    private String testname;
-
     // Also store classroom code (so you can identify where this test belongs)
     @Column(name = "classroom_code", nullable = false)
     private String classroomCode;
+
+    @Column(name = "testname", nullable = false)
+    private String testname;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_username", nullable = false)
