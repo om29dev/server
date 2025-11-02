@@ -197,4 +197,43 @@ public class TestController {
         testRepository.save(test);
         return ResponseEntity.ok("Test ended successfully. Students can now submit answers.");
     }
+
+    @GetMapping("/{testname}/pdf")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
+    public ResponseEntity<?> getTestPDF(@PathVariable String classroomCode,
+                                        @PathVariable String testname,
+                                        Authentication authentication) {
+
+        String username = authentication.getName();
+
+        // 1. Fetch the test by name and classroom
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
+        }
+
+        Test test = testOpt.get();
+        Classroom classroom = test.getClassroom();
+
+        // 2. Ensure student is enrolled in the classroom
+        if (!classroom.getClassroomstudents().contains(username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("You are not enrolled in this classroom.");
+        }
+
+        // 3. Ensure the test is active
+        if (!"ACTIVE".equals(test.getStatus())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Test is not active yet. Wait for your teacher to start it.");
+        }
+
+        // 4. Return PDF URL or file path
+        if (test.getQuestionsPdfPath() == null || test.getQuestionsPdfPath().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("PDF file not available for this test.");
+        }
+
+        return ResponseEntity.ok(test.getQuestionsPdfPath());
+    }
+
 }
