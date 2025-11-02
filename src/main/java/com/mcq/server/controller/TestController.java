@@ -6,13 +6,18 @@ import com.mcq.server.repository.ClassroomRepository;
 import com.mcq.server.repository.TestRepository;
 import com.mcq.server.service.SavePDFService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Optional;
 
@@ -227,13 +232,31 @@ public class TestController {
                     .body("Test is not active yet. Wait for your teacher to start it.");
         }
 
-        // 4. Return PDF URL or file path
-        if (test.getQuestionsPdfPath() == null || test.getQuestionsPdfPath().isEmpty()) {
+        // 4. Get the PDF file path
+        String pdfPath = test.getQuestionsPdfPath();
+        if (pdfPath == null || pdfPath.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("PDF file not available for this test.");
         }
 
-        return ResponseEntity.ok(test.getQuestionsPdfPath());
+        // 5. Read the file and return as multipart PDF
+        try {
+            File pdfFile = new File(pdfPath);
+            if (!pdfFile.exists()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("PDF file not found on server.");
+            }
+
+            byte[] pdfBytes = Files.readAllBytes(pdfFile.toPath());
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + pdfFile.getName() + "\"")
+                    .body(pdfBytes);
+
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error reading PDF file: " + e.getMessage());
+        }
     }
 
 }
