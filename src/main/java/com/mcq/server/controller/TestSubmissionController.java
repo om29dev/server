@@ -1,5 +1,6 @@
 package com.mcq.server.controller;
 
+import com.mcq.server.dto.TestSubmissionDTO; // <-- IMPORT THE NEW DTO
 import com.mcq.server.model.Classroom;
 import com.mcq.server.model.Test;
 import com.mcq.server.model.TestSubmission;
@@ -19,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors; // <-- IMPORT COLLECTORS
 
 @RestController
 @RequestMapping("/api/classrooms/{classroomCode}/tests/{testname}/submissions")
@@ -63,7 +65,10 @@ public class TestSubmissionController {
                     .body("You have not submitted this test yet.");
         }
 
-        return ResponseEntity.ok(submissions.get(0));
+        // --- FIX ---
+        // Convert the TestSubmission entity to a TestSubmissionDTO
+        TestSubmissionDTO submissionDTO = new TestSubmissionDTO(submissions.get(0));
+        return ResponseEntity.ok(submissionDTO);
     }
 
     // 🟩 3. TEACHER or ADMIN views all submissions for a test
@@ -94,7 +99,13 @@ public class TestSubmissionController {
         List<TestSubmission> submissions = testSubmissionRepository
                 .findByTestnameAndClassroomCode(testname, classroomCode);
 
-        return ResponseEntity.ok(submissions);
+        // --- FIX ---
+        // Convert the List<TestSubmission> to a List<TestSubmissionDTO>
+        List<TestSubmissionDTO> submissionDTOs = submissions.stream()
+                .map(TestSubmissionDTO::new)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(submissionDTOs);
     }
 
     @PostMapping("/submit")
@@ -139,7 +150,4 @@ public class TestSubmissionController {
 
         return ResponseEntity.ok(response);
     }
-
-
-
 }
