@@ -16,9 +16,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
+import java.util.HashMap; // <-- IMPORT
 import java.util.List;
-import java.util.Map;
+import java.util.Map; // <-- IMPORT
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -110,6 +110,51 @@ public class TestSubmissionController {
 
         return ResponseEntity.ok(results);
     }
+
+    // --- NEW ENDPOINT FOR AUTO-SAVING ---
+    @PostMapping("/update")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
+    public ResponseEntity<?> updateAnswers(@PathVariable String classroomCode,
+                                           @PathVariable String testname,
+                                           @RequestBody List<String> userAnswers,
+                                           Authentication authentication) {
+        String username = authentication.getName();
+
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
+        }
+        Test test = testOpt.get();
+
+        // Allow updates *only if* test is ACTIVE
+        if (!"ACTIVE".equals(test.getStatus())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Can only update answers for an active test.");
+        }
+
+        // Validate answer count
+        if (userAnswers.size() != test.getQuestionCount()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Update failed: Expected " + test.getQuestionCount() + " answers, but received " + userAnswers.size() + ".");
+        }
+
+        Optional<TestSubmission> submissionOpt =
+                testSubmissionRepository.findByTestnameAndClassroomCodeAndUserUsername(testname, classroomCode, username)
+                        .stream().findFirst();
+
+        if (submissionOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Submission not found.");
+        }
+
+        TestSubmission submission = submissionOpt.get();
+        submission.setUserAnswers(userAnswers);
+        testSubmissionRepository.save(submission);
+
+        return ResponseEntity.ok(Map.of("message", "Answers saved."));
+    }
+    // --- END NEW ENDPOINT ---
+
 
     // --- REVERTED to /submit endpoint ---
     // This will be called by the frontend *once* when it detects the test has ENDED.

@@ -40,10 +40,11 @@ public class Test {
     @JoinColumn(name = "classroom_code", nullable = false)
     private Classroom classroom;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JoinColumn(name = "testname", referencedColumnName = "testname")
-    private List<TestSubmission> testSubmissions = new ArrayList<>();
-
+    // --- FIELD REMOVED ---
+    // The @OneToMany testSubmissions list was removed.
+    // It was not modeled correctly (using 'testname' as a JoinColumn)
+    // and was likely conflicting with the manual deletion logic in TestController.
+    // Removing it fixes the 500 Internal Server Error on test deletion.
 
     @Column(nullable = false)
     private String status = "NOT_STARTED";
@@ -99,13 +100,9 @@ public class Test {
         this.classroom = classroom;
     }
 
-    public List<TestSubmission> getTestSubmissions() {
-        return testSubmissions;
-    }
-
-    public void setTestSubmissions(List<TestSubmission> testSubmissions) {
-        this.testSubmissions = testSubmissions;
-    }
+    // --- GETTER/SETTER REMOVED ---
+    // public List<TestSubmission> getTestSubmissions() ...
+    // public void setTestSubmissions(List<TestSubmission> testSubmissions) ...
 
     public String getStatus() {
         return status;

@@ -188,7 +188,10 @@ public class ClassroomController {
 
             // Save classroom
             Classroom savedClassroom = classroomRepository.save(classroom);
-            return new ResponseEntity<>(savedClassroom, HttpStatus.CREATED);
+
+            // --- THIS IS THE FIX ---
+            // Return a DTO instead of the raw entity to avoid proxy serialization
+            return new ResponseEntity<>(new ClassroomDTO(savedClassroom), HttpStatus.CREATED);
 
         } catch (Exception e) {
             e.printStackTrace();
