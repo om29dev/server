@@ -1,10 +1,10 @@
 package com.mcq.server.controller;
 
-import com.mcq.server.dto.TestSubmissionDTO; // <-- IMPORT THE NEW DTO
+import com.mcq.server.dto.StudentResultDTO;
+import com.mcq.server.dto.TeacherResultsDTO;
 import com.mcq.server.model.Classroom;
 import com.mcq.server.model.Test;
 import com.mcq.server.model.TestSubmission;
-import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
 import com.mcq.server.repository.TestRepository;
 import com.mcq.server.repository.TestSubmissionRepository;
@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors; // <-- IMPORT COLLECTORS
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/classrooms/{classroomCode}/tests/{testname}/submissions")
@@ -38,7 +38,6 @@ public class TestSubmissionController {
     @Autowired
     private UserRepository userRepository;
 
-    // 🟩 2. STUDENT views own submission
     @GetMapping("/my")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<?> getMySubmission(@PathVariable String classroomCode,
@@ -47,31 +46,26 @@ public class TestSubmissionController {
 
         String username = authentication.getName();
 
-        Optional<Classroom> classroomOpt = classroomRepository.findById(classroomCode);
-        if (classroomOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Classroom not found.");
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
         }
+        Test test = testOpt.get();
 
-        if (!classroomOpt.get().getClassroomstudents().contains(username)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("You are not a member of this classroom.");
-        }
+        Optional<TestSubmission> submissionOpt = testSubmissionRepository
+                .findByTestnameAndClassroomCodeAndUserUsername(testname, classroomCode, username)
+                .stream().findFirst();
 
-        List<TestSubmission> submissions = testSubmissionRepository
-                .findByTestnameAndClassroomCodeAndUserUsername(testname, classroomCode, username);
-
-        if (submissions.isEmpty()) {
+        if (submissionOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("You have not submitted this test yet.");
+                    .body("You have not made a submission for this test.");
         }
+        TestSubmission submission = submissionOpt.get();
 
-        // --- FIX ---
-        // Convert the TestSubmission entity to a TestSubmissionDTO
-        TestSubmissionDTO submissionDTO = new TestSubmissionDTO(submissions.get(0));
-        return ResponseEntity.ok(submissionDTO);
+        StudentResultDTO resultDTO = new StudentResultDTO(submission, test);
+        return ResponseEntity.ok(resultDTO);
     }
 
-    // 🟩 3. TEACHER or ADMIN views all submissions for a test
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_TEACHER', 'ROLE_ADMIN')")
     public ResponseEntity<?> getAllSubmissions(@PathVariable String classroomCode,
@@ -80,11 +74,16 @@ public class TestSubmissionController {
 
         String username = authentication.getName();
 
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
+        }
+        Test test = testOpt.get();
+
         Optional<Classroom> classroomOpt = classroomRepository.findById(classroomCode);
         if (classroomOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Classroom not found.");
         }
-
         Classroom classroom = classroomOpt.get();
 
         boolean isAdmin = authentication.getAuthorities().stream()
@@ -93,22 +92,27 @@ public class TestSubmissionController {
 
         if (!isAdmin && !isTeacher) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Only teachers or admins can view all submissions.");
+                    .body("Only the teacher or an admin can view all submissions.");
         }
 
         List<TestSubmission> submissions = testSubmissionRepository
                 .findByTestnameAndClassroomCode(testname, classroomCode);
 
-        // --- FIX ---
-        // Convert the List<TestSubmission> to a List<TestSubmissionDTO>
-        List<TestSubmissionDTO> submissionDTOs = submissions.stream()
-                .map(TestSubmissionDTO::new)
+        List<StudentResultDTO> submissionDTOs = submissions.stream()
+                .map(sub -> new StudentResultDTO(sub, test))
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(submissionDTOs);
+        TeacherResultsDTO results = new TeacherResultsDTO(
+                test.getCorrectAnswers(),
+                test.getQuestionCount(),
+                submissionDTOs
+        );
+
+        return ResponseEntity.ok(results);
     }
 
-    // --- MODIFIED ---
+    // --- REVERTED to /submit endpoint ---
+    // This will be called by the frontend *once* when it detects the test has ENDED.
     @PostMapping("/submit")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<?> submitAnswers(@PathVariable String classroomCode,
@@ -118,21 +122,28 @@ public class TestSubmissionController {
 
         String username = authentication.getName();
 
-        // --- NEW LOGIC: Check if test is active ---
         Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
         if (testOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("Test not found.");
         }
 
-        if (!"ACTIVE".equals(testOpt.get().getStatus())) {
+        Test test = testOpt.get(); // Get the test object
+
+        // --- IMPORTANT ---
+        // We allow submission *only if* the test is ENDED.
+        // The frontend polling will detect "ENDED" and *then* call this endpoint.
+        if (!"ENDED".equals(test.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Test is not currently active for submission.");
+                    .body("Test is not yet over.");
         }
-        // --- END NEW LOGIC ---
 
+        // Validate answer count
+        if (userAnswers.size() != test.getQuestionCount()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Submission failed: Expected " + test.getQuestionCount() + " answers, but received " + userAnswers.size() + ".");
+        }
 
-        // Find the TestSubmission record for this student (should exist now)
         Optional<TestSubmission> submissionOpt =
                 testSubmissionRepository.findByTestnameAndClassroomCodeAndUserUsername(testname, classroomCode, username)
                         .stream().findFirst();
@@ -148,13 +159,8 @@ public class TestSubmissionController {
         submission.setUserAnswers(userAnswers);
         testSubmissionRepository.save(submission);
 
-        List<String> correctAnswers = testOpt.get().getCorrectAnswers();
-
-        // Prepare response
-        Map<String, Object> response = new HashMap<>();
+        Map<String, String> response = new HashMap<>();
         response.put("message", "Answers submitted successfully.");
-        response.put("submittedAnswers", userAnswers);
-        response.put("correctAnswers", correctAnswers);
 
         return ResponseEntity.ok(response);
     }

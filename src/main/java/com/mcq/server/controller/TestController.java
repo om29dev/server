@@ -3,12 +3,12 @@ package com.mcq.server.controller;
 import com.mcq.server.dto.TestDTO;
 import com.mcq.server.model.Classroom;
 import com.mcq.server.model.Test;
-import com.mcq.server.model.TestSubmission; // <-- IMPORT
+import com.mcq.server.model.TestSubmission;
 import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
 import com.mcq.server.repository.TestRepository;
-import com.mcq.server.repository.TestSubmissionRepository; // <-- Already imported from last time
-import com.mcq.server.repository.UserRepository; // <-- Already imported from last time
+import com.mcq.server.repository.TestSubmissionRepository;
+import com.mcq.server.repository.UserRepository;
 import com.mcq.server.service.SavePDFService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern; // <-- IMPORT PATTERN
 import java.util.stream.Collectors;
 
 @RestController
@@ -47,6 +48,9 @@ public class TestController {
     @Autowired
     private UserRepository userRepository;
 
+    // Regex to validate answers are A, B, C, or D
+    private static final Pattern ANSWER_PATTERN = Pattern.compile("^[A-D]$");
+
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<?> createTest(@PathVariable String classroomCode,
@@ -64,11 +68,37 @@ public class TestController {
                         .body("A test with this name already exists in this classroom.");
             }
 
-            String pdfPath = savePDFService.savePDF(pdfFile);
+            // --- MODIFIED: Save PDF and get page count ---
+            SavePDFService.PdfInfo pdfInfo;
+            try {
+                pdfInfo = savePDFService.savePDF(pdfFile);
+            } catch (IOException e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to save PDF: " + e.getMessage());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            }
+
+            // --- NEW VALIDATION LOGIC ---
+            // 1. Check if page count matches answer count
+            if (pdfInfo.pageCount() != correctAnswers.size()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Validation failed: The number of questions (" + pdfInfo.pageCount() +
+                                ") does not match the number of answers provided (" + correctAnswers.size() + ").");
+            }
+
+            // 2. Check if all answers are valid (A, B, C, or D)
+            for (String answer : correctAnswers) {
+                if (!ANSWER_PATTERN.matcher(answer).matches()) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body("Validation failed: Invalid answer '" + answer + "'. Answers must be A, B, C, or D.");
+                }
+            }
+            // --- END VALIDATION ---
 
             Test test = new Test();
             test.setTestname(testname);
-            test.setQuestionsPdfPath(pdfPath);
+            test.setQuestionsPdfPath(pdfInfo.path());
+            test.setQuestionCount(pdfInfo.pageCount()); // <-- SAVE PAGE COUNT
             test.setCorrectAnswers(correctAnswers);
             test.setClassroom(classroomOpt.get());
 
@@ -146,8 +176,6 @@ public class TestController {
         return ResponseEntity.ok(testDTO);
     }
 
-    // 🟥 Delete Test by Name (for teacher of that classroom or admin)
-    // --- THIS METHOD IS NOW FIXED ---
     @DeleteMapping("/{testname}")
     @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<?> deleteTestByName(@PathVariable String classroomCode,
@@ -156,7 +184,6 @@ public class TestController {
 
         String username = authentication.getName();
 
-        // ✅ Find test
         Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
         if (testOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -175,24 +202,18 @@ public class TestController {
                     .body("You are not authorized to delete this test.");
         }
 
-        // --- NEW FIX ---
-        // 1. Find all submissions related to this test using the exact name and code
         List<TestSubmission> submissions = testSubmissionRepository
                 .findByTestnameAndClassroomCode(test.getTestname(), test.getClassroom().getCode());
 
-        // 2. Delete all submissions first (this will cascade to their userAnswers)
         if (!submissions.isEmpty()) {
             testSubmissionRepository.deleteAll(submissions);
         }
-        // --- END FIX ---
 
-        // 3. Now it's safe to delete the test (this will cascade to its correctAnswers)
         testRepository.delete(test);
         return ResponseEntity.noContent().build();
     }
 
 
-    // 🟩 START TEST
     @PostMapping("/{testname}/start")
     @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<?> startTest(@PathVariable String classroomCode,
@@ -211,7 +232,6 @@ public class TestController {
         test.setStatus("ACTIVE");
         testRepository.save(test);
 
-        // --- Create submissions for all students ---
         Classroom classroom = test.getClassroom();
         List<String> studentUsernames = classroom.getClassroomstudents();
 
@@ -232,7 +252,6 @@ public class TestController {
         return ResponseEntity.ok("Test started successfully. Submissions created for all students.");
     }
 
-    // 🟥 END TEST
     @PostMapping("/{testname}/end")
     @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<?> endTest(@PathVariable String classroomCode,
@@ -274,9 +293,10 @@ public class TestController {
                     .body("You are not enrolled in this classroom.");
         }
 
-        if (!"ACTIVE".equals(test.getStatus())) {
+        // --- MODIFIED: Allow PDF download if test is ACTIVE *or* ENDED ---
+        if (!"ACTIVE".equals(test.getStatus()) && !"ENDED".equals(test.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Test is not active yet. Wait for your teacher to start it.");
+                    .body("Test is not active or has not ended yet.");
         }
 
         String pdfPath = test.getQuestionsPdfPath();

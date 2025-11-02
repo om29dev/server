@@ -24,6 +24,10 @@ public class Test {
     @Column(name = "questions_pdf_path", nullable = false)
     private String questionsPdfPath;
 
+    // --- NEW FIELD ---
+    @Column(name = "question_count", nullable = false)
+    private int questionCount;
+
     @ElementCollection
     @CollectionTable(
             name = "test_correct_answers",
@@ -68,6 +72,15 @@ public class Test {
 
     public void setQuestionsPdfPath(String questionsPdfPath) {
         this.questionsPdfPath = questionsPdfPath;
+    }
+
+    // --- NEW GETTER/SETTER ---
+    public int getQuestionCount() {
+        return questionCount;
+    }
+
+    public void setQuestionCount(int questionCount) {
+        this.questionCount = questionCount;
     }
 
     public List<String> getCorrectAnswers() {

@@ -9,13 +9,15 @@ public class TestDTO {
     private String testname;
     private List<String> correctAnswers;
     private String status;
-    private ClassroomDTO classroom; // Uses ClassroomDTO to avoid nested proxy issues
+    private ClassroomDTO classroom;
+    private int questionCount; // <-- **FIX 1: ADDED THIS FIELD**
 
     public TestDTO(Test test) {
         this.id = test.getId();
         this.testname = test.getTestname();
         this.correctAnswers = test.getCorrectAnswers();
         this.status = test.getStatus();
+        this.questionCount = test.getQuestionCount(); // <-- **FIX 2: SET THE FIELD**
 
         // This is the key fix: We convert the Classroom entity to a ClassroomDTO.
         if (test.getClassroom() != null) {
@@ -44,4 +46,11 @@ public class TestDTO {
     public ClassroomDTO getClassroom() {
         return classroom;
     }
+
+    // <-- **FIX 3: ADD THE GETTER**
+    public int getQuestionCount() {
+        return questionCount;
+    }
+
+
 }
