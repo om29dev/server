@@ -1,10 +1,13 @@
 package com.mcq.server.controller;
 
 import com.mcq.server.dto.ClassroomDTO;
+import com.mcq.server.dto.TestDTO; // <-- IMPORT
 import com.mcq.server.model.Classroom;
+import com.mcq.server.model.Test; // <-- IMPORT
 import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
 import com.mcq.server.repository.MyUserDetails;
+import com.mcq.server.repository.TestRepository; // <-- IMPORT
 import com.mcq.server.service.UniqueCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -27,6 +30,34 @@ public class ClassroomController {
 
     @Autowired
     private UniqueCodeGenerator uniqueCodeGenerator; // Autowire the service
+
+    @Autowired
+    private TestRepository testRepository; // <-- AUTOWIRE TestRepository
+
+    // --- NEW ENDPOINT ---
+    @GetMapping("/student/active-test")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
+    public ResponseEntity<?> getActiveTestForStudent(Authentication authentication) {
+        String username = authentication.getName();
+
+        // 1. Find all classrooms student is in
+        List<Classroom> classrooms = classroomRepository.findAllByClassroomstudentsContaining(username);
+
+        // 2. Search all tests in those classrooms for an "ACTIVE" one
+        for (Classroom classroom : classrooms) {
+            List<Test> tests = testRepository.findByClassroomCode(classroom.getCode());
+            for (Test test : tests) {
+                if ("ACTIVE".equals(test.getStatus())) {
+                    // 3. Found one, return it
+                    return ResponseEntity.ok(new TestDTO(test));
+                }
+            }
+        }
+
+        // 4. No active test found
+        return ResponseEntity.noContent().build();
+    }
+
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT')")

@@ -1,10 +1,14 @@
 package com.mcq.server.controller;
 
-import com.mcq.server.dto.TestDTO; // <-- IMPORT THE NEW DTO
+import com.mcq.server.dto.TestDTO;
 import com.mcq.server.model.Classroom;
 import com.mcq.server.model.Test;
+import com.mcq.server.model.TestSubmission; // <-- IMPORT
+import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
 import com.mcq.server.repository.TestRepository;
+import com.mcq.server.repository.TestSubmissionRepository; // <-- Already imported from last time
+import com.mcq.server.repository.UserRepository; // <-- Already imported from last time
 import com.mcq.server.service.SavePDFService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -19,9 +23,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors; // <-- IMPORT COLLECTORS
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/classrooms/{classroomCode}/tests")
@@ -35,6 +40,12 @@ public class TestController {
 
     @Autowired
     private SavePDFService savePDFService;
+
+    @Autowired
+    private TestSubmissionRepository testSubmissionRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
@@ -63,8 +74,6 @@ public class TestController {
 
             Test savedTest = testRepository.save(test);
 
-            // --- FIX ---
-            // Return the DTO, not the entity
             return new ResponseEntity<>(new TestDTO(savedTest), HttpStatus.CREATED);
 
         } catch (Exception e) {
@@ -96,8 +105,6 @@ public class TestController {
 
         List<Test> tests = testRepository.findByClassroomCode(classroomCode);
 
-        // --- FIX ---
-        // Convert List<Test> to List<TestDTO>
         List<TestDTO> testDTOs = tests.stream()
                 .map(TestDTO::new)
                 .collect(Collectors.toList());
@@ -110,7 +117,6 @@ public class TestController {
                                            @PathVariable String testname,
                                            Authentication authentication) {
 
-        // ✅ Check if classroom exists
         Optional<Classroom> classroomOpt = classroomRepository.findById(classroomCode);
         if (classroomOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Classroom not found.");
@@ -119,7 +125,6 @@ public class TestController {
         Classroom classroom = classroomOpt.get();
         String username = authentication.getName();
 
-        // ✅ Role verification
         boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isTeacher = classroom.getClassroomteacher().getUsername().equals(username);
@@ -130,21 +135,19 @@ public class TestController {
                     .body("You are not authorized to view this test.");
         }
 
-        // ✅ Find test by name and classroom code
         Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
         if (testOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("Test not found with that name in this classroom.");
         }
 
-        // --- FIX ---
-        // Convert Test to TestDTO
         TestDTO testDTO = new TestDTO(testOpt.get());
 
         return ResponseEntity.ok(testDTO);
     }
 
     // 🟥 Delete Test by Name (for teacher of that classroom or admin)
+    // --- THIS METHOD IS NOW FIXED ---
     @DeleteMapping("/{testname}")
     @PreAuthorize("hasRole('ROLE_ADMIN') or @classroomRepository.findById(#classroomCode).get().getClassroomteacher().getUsername() == authentication.name")
     public ResponseEntity<?> deleteTestByName(@PathVariable String classroomCode,
@@ -172,6 +175,18 @@ public class TestController {
                     .body("You are not authorized to delete this test.");
         }
 
+        // --- NEW FIX ---
+        // 1. Find all submissions related to this test using the exact name and code
+        List<TestSubmission> submissions = testSubmissionRepository
+                .findByTestnameAndClassroomCode(test.getTestname(), test.getClassroom().getCode());
+
+        // 2. Delete all submissions first (this will cascade to their userAnswers)
+        if (!submissions.isEmpty()) {
+            testSubmissionRepository.deleteAll(submissions);
+        }
+        // --- END FIX ---
+
+        // 3. Now it's safe to delete the test (this will cascade to its correctAnswers)
         testRepository.delete(test);
         return ResponseEntity.noContent().build();
     }
@@ -195,7 +210,26 @@ public class TestController {
 
         test.setStatus("ACTIVE");
         testRepository.save(test);
-        return ResponseEntity.ok("Test started successfully.");
+
+        // --- Create submissions for all students ---
+        Classroom classroom = test.getClassroom();
+        List<String> studentUsernames = classroom.getClassroomstudents();
+
+        for (String username : studentUsernames) {
+            if (!testSubmissionRepository.existsByTestnameAndClassroomCodeAndUserUsername(testname, classroomCode, username)) {
+                Optional<User> userOpt = userRepository.findByUsername(username);
+                if (userOpt.isPresent()) {
+                    TestSubmission submission = new TestSubmission();
+                    submission.setClassroomCode(classroomCode);
+                    submission.setTestname(testname);
+                    submission.setUser(userOpt.get());
+                    submission.setUserAnswers(new ArrayList<>());
+                    testSubmissionRepository.save(submission);
+                }
+            }
+        }
+
+        return ResponseEntity.ok("Test started successfully. Submissions created for all students.");
     }
 
     // 🟥 END TEST
@@ -227,7 +261,6 @@ public class TestController {
 
         String username = authentication.getName();
 
-        // 1. Fetch the test by name and classroom
         Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
         if (testOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Test not found.");
@@ -236,26 +269,22 @@ public class TestController {
         Test test = testOpt.get();
         Classroom classroom = test.getClassroom();
 
-        // 2. Ensure student is enrolled in the classroom
         if (!classroom.getClassroomstudents().contains(username)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("You are not enrolled in this classroom.");
         }
 
-        // 3. Ensure the test is active
         if (!"ACTIVE".equals(test.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Test is not active yet. Wait for your teacher to start it.");
         }
 
-        // 4. Get the PDF file path
         String pdfPath = test.getQuestionsPdfPath();
         if (pdfPath == null || pdfPath.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("PDF file not available for this test.");
         }
 
-        // 5. Read the file and return as multipart PDF
         try {
             File pdfFile = new File(pdfPath);
             if (!pdfFile.exists()) {

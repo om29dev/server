@@ -108,6 +108,7 @@ public class TestSubmissionController {
         return ResponseEntity.ok(submissionDTOs);
     }
 
+    // --- MODIFIED ---
     @PostMapping("/submit")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<?> submitAnswers(@PathVariable String classroomCode,
@@ -117,14 +118,28 @@ public class TestSubmissionController {
 
         String username = authentication.getName();
 
-        // Find the TestSubmission record for this student
+        // --- NEW LOGIC: Check if test is active ---
+        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
+        if (testOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Test not found.");
+        }
+
+        if (!"ACTIVE".equals(testOpt.get().getStatus())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Test is not currently active for submission.");
+        }
+        // --- END NEW LOGIC ---
+
+
+        // Find the TestSubmission record for this student (should exist now)
         Optional<TestSubmission> submissionOpt =
                 testSubmissionRepository.findByTestnameAndClassroomCodeAndUserUsername(testname, classroomCode, username)
                         .stream().findFirst();
 
         if (submissionOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Submission not found. Make sure the test has been started and ended by the teacher.");
+                    .body("Submission not found. Test may not have been started correctly by the teacher.");
         }
 
         TestSubmission submission = submissionOpt.get();
@@ -132,13 +147,6 @@ public class TestSubmissionController {
         // Store student answers
         submission.setUserAnswers(userAnswers);
         testSubmissionRepository.save(submission);
-
-        // Fetch correct answers from Test
-        Optional<Test> testOpt = testRepository.findByTestnameIgnoreCaseAndClassroomCode(testname, classroomCode);
-        if (testOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Test not found.");
-        }
 
         List<String> correctAnswers = testOpt.get().getCorrectAnswers();
 
