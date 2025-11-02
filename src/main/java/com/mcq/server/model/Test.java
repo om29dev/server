@@ -36,8 +36,10 @@ public class Test {
     @JoinColumn(name = "classroom_code", nullable = false)
     private Classroom classroom;
 
-    @OneToMany(mappedBy = "tests", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "testname", referencedColumnName = "testname")
     private List<TestSubmission> testSubmissions = new ArrayList<>();
+
 
     @Column(nullable = false)
     private String status = "NOT_STARTED";
