@@ -16,9 +16,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap; // <-- IMPORT
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map; // <-- IMPORT
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -111,7 +111,6 @@ public class TestSubmissionController {
         return ResponseEntity.ok(results);
     }
 
-    // --- NEW ENDPOINT FOR AUTO-SAVING ---
     @PostMapping("/update")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<?> updateAnswers(@PathVariable String classroomCode,
@@ -126,13 +125,11 @@ public class TestSubmissionController {
         }
         Test test = testOpt.get();
 
-        // Allow updates *only if* test is ACTIVE
         if (!"ACTIVE".equals(test.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Can only update answers for an active test.");
         }
 
-        // Validate answer count
         if (userAnswers.size() != test.getQuestionCount()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Update failed: Expected " + test.getQuestionCount() + " answers, but received " + userAnswers.size() + ".");
@@ -153,11 +150,8 @@ public class TestSubmissionController {
 
         return ResponseEntity.ok(Map.of("message", "Answers saved."));
     }
-    // --- END NEW ENDPOINT ---
 
 
-    // --- REVERTED to /submit endpoint ---
-    // This will be called by the frontend *once* when it detects the test has ENDED.
     @PostMapping("/submit")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<?> submitAnswers(@PathVariable String classroomCode,
@@ -173,17 +167,13 @@ public class TestSubmissionController {
                     .body("Test not found.");
         }
 
-        Test test = testOpt.get(); // Get the test object
+        Test test = testOpt.get();
 
-        // --- IMPORTANT ---
-        // We allow submission *only if* the test is ENDED.
-        // The frontend polling will detect "ENDED" and *then* call this endpoint.
         if (!"ENDED".equals(test.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Test is not yet over.");
         }
 
-        // Validate answer count
         if (userAnswers.size() != test.getQuestionCount()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Submission failed: Expected " + test.getQuestionCount() + " answers, but received " + userAnswers.size() + ".");
@@ -200,7 +190,6 @@ public class TestSubmissionController {
 
         TestSubmission submission = submissionOpt.get();
 
-        // Store student answers
         submission.setUserAnswers(userAnswers);
         testSubmissionRepository.save(submission);
 

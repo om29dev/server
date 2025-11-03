@@ -10,9 +10,7 @@ import java.util.Optional;
 @Repository
 public interface ClassroomRepository extends JpaRepository<Classroom, String> {
 
-    // Find a classroom by its unique name (case-insensitive)
     Optional<Classroom> findByClassroomnameIgnoreCase(String classroomname);
 
-    // Find all classrooms a student is enrolled in
     List<Classroom> findAllByClassroomstudentsContaining(String studentUsername);
 }

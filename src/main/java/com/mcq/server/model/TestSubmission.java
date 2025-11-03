@@ -12,7 +12,6 @@ public class TestSubmission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Also store classroom code (so you can identify where this test belongs)
     @Column(name = "classroom_code", nullable = false)
     private String classroomCode;
 

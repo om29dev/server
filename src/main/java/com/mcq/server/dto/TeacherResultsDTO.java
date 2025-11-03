@@ -13,7 +13,6 @@ public class TeacherResultsDTO {
         this.submissions = submissions;
     }
 
-    // Getters
     public List<String> getCorrectAnswers() { return correctAnswers; }
     public int getTotalQuestions() { return totalQuestions; }
     public List<StudentResultDTO> getSubmissions() { return submissions; }

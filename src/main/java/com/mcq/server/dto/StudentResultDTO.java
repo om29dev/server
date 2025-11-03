@@ -11,16 +11,15 @@ public class StudentResultDTO {
     private List<String> correctAnswers;
     private int score;
     private int totalQuestions;
-    private String pdfPath; // To show the PDF next to the results
+    private String pdfPath;
 
     public StudentResultDTO(TestSubmission submission, Test test) {
         this.user = new UserDTO(submission.getUser());
         this.userAnswers = submission.getUserAnswers();
         this.correctAnswers = test.getCorrectAnswers();
         this.totalQuestions = test.getQuestionCount();
-        this.pdfPath = test.getQuestionsPdfPath(); // Include the PDF path
+        this.pdfPath = test.getQuestionsPdfPath();
 
-        // Calculate score
         this.score = 0;
         for (int i = 0; i < this.totalQuestions; i++) {
             if (i < userAnswers.size() && userAnswers.get(i) != null &&
@@ -30,7 +29,6 @@ public class StudentResultDTO {
         }
     }
 
-    // Getters
     public UserDTO getUser() { return user; }
     public List<String> getUserAnswers() { return userAnswers; }
     public List<String> getCorrectAnswers() { return correctAnswers; }

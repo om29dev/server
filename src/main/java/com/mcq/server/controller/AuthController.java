@@ -30,7 +30,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody User newUser) {
         try {
-            authService.registerUser(newUser);  // Register the user
+            authService.registerUser(newUser);
             return new ResponseEntity<>("Registration Successful.", HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>("Registration failed: " + e.getMessage(), HttpStatus.BAD_REQUEST);
@@ -54,9 +54,6 @@ public class AuthController {
         }
     }
 
-
-    // Logout is implemented in Security Config
-
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> request) {
         String email = request.get("email");
@@ -67,7 +64,6 @@ public class AuthController {
         Optional<String> tokenOptional = authService.generateResetToken(email);
 
         if (tokenOptional.isPresent()) {
-            // WARNING: This returns the token directly and is INSECURE for production.
             return ResponseEntity.ok(
                     Map.of(
                             "message", "Token generated successfully",

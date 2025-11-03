@@ -17,7 +17,6 @@ public class ClassroomDTO {
         this.classroomstudents = classroom.getClassroomstudents();
     }
 
-    // Getters
     public String getCode() {
         return code;
     }

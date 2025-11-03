@@ -15,7 +15,6 @@ public class MyUserDetails implements UserDetails {
         this.user = user;
     }
 
-    // Add this getter method
     public User getUser() {
         return user;
     }

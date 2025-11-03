@@ -28,8 +28,7 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    // --- NEW FIELD FOR ROLE ---
-    @Enumerated(EnumType.STRING) // Stores the Enum name (e.g., "STUDENT") as a String in the DB
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role;
 
@@ -83,7 +82,6 @@ public class User {
         return uuid;
     }
 
-    // NEW GETTER AND SETTER FOR ROLE
     public UserRole getRole() {
         return role;
     }

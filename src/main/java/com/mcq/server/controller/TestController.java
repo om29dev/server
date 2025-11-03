@@ -26,7 +26,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern; // <-- IMPORT PATTERN
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @RestController
@@ -48,7 +48,6 @@ public class TestController {
     @Autowired
     private UserRepository userRepository;
 
-    // Regex to validate answers are A, B, C, or D
     private static final Pattern ANSWER_PATTERN = Pattern.compile("^[A-D]$");
 
     @PostMapping
@@ -68,7 +67,6 @@ public class TestController {
                         .body("A test with this name already exists in this classroom.");
             }
 
-            // --- MODIFIED: Save PDF and get page count ---
             SavePDFService.PdfInfo pdfInfo;
             try {
                 pdfInfo = savePDFService.savePDF(pdfFile);
@@ -78,27 +76,23 @@ public class TestController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
             }
 
-            // --- NEW VALIDATION LOGIC ---
-            // 1. Check if page count matches answer count
             if (pdfInfo.pageCount() != correctAnswers.size()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body("Validation failed: The number of questions (" + pdfInfo.pageCount() +
                                 ") does not match the number of answers provided (" + correctAnswers.size() + ").");
             }
 
-            // 2. Check if all answers are valid (A, B, C, or D)
             for (String answer : correctAnswers) {
                 if (!ANSWER_PATTERN.matcher(answer).matches()) {
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                             .body("Validation failed: Invalid answer '" + answer + "'. Answers must be A, B, C, or D.");
                 }
             }
-            // --- END VALIDATION ---
 
             Test test = new Test();
             test.setTestname(testname);
             test.setQuestionsPdfPath(pdfInfo.path());
-            test.setQuestionCount(pdfInfo.pageCount()); // <-- SAVE PAGE COUNT
+            test.setQuestionCount(pdfInfo.pageCount());
             test.setCorrectAnswers(correctAnswers);
             test.setClassroom(classroomOpt.get());
 
@@ -293,7 +287,6 @@ public class TestController {
                     .body("You are not enrolled in this classroom.");
         }
 
-        // --- MODIFIED: Allow PDF download if test is ACTIVE *or* ENDED ---
         if (!"ACTIVE".equals(test.getStatus()) && !"ENDED".equals(test.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Test is not active or has not ended yet.");

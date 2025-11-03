@@ -8,7 +8,7 @@ public class TestSubmissionDTO {
     private Long id;
     private String classroomCode;
     private String testname;
-    private UserDTO user; // <-- This is the fix
+    private UserDTO user;
     private List<String> userAnswers;
 
     public TestSubmissionDTO(TestSubmission submission) {
@@ -17,13 +17,10 @@ public class TestSubmissionDTO {
         this.testname = submission.getTestname();
         this.userAnswers = submission.getUserAnswers();
 
-        // Safely handle the lazy-loaded User by converting it to a DTO
         if (submission.getUser() != null) {
             this.user = new UserDTO(submission.getUser());
         }
     }
-
-    // --- Getters ---
 
     public Long getId() {
         return id;

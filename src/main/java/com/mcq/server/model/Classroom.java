@@ -16,12 +16,10 @@ public class Classroom {
     @Column(nullable = false, unique = true)
     private String classroomname;
 
-    // Link to User entity by username
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "teacher_username", nullable = false)
     private User classroomteacher;
 
-    // Store student usernames in separate table
     @ElementCollection
     @CollectionTable(
             name = "classroom_students",

@@ -1,13 +1,13 @@
 package com.mcq.server.controller;
 
 import com.mcq.server.dto.ClassroomDTO;
-import com.mcq.server.dto.TestDTO; // <-- IMPORT
+import com.mcq.server.dto.TestDTO;
 import com.mcq.server.model.Classroom;
-import com.mcq.server.model.Test; // <-- IMPORT
+import com.mcq.server.model.Test;
 import com.mcq.server.model.User;
 import com.mcq.server.repository.ClassroomRepository;
 import com.mcq.server.repository.MyUserDetails;
-import com.mcq.server.repository.TestRepository; // <-- IMPORT
+import com.mcq.server.repository.TestRepository;
 import com.mcq.server.service.UniqueCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -29,32 +29,27 @@ public class ClassroomController {
     private ClassroomRepository classroomRepository;
 
     @Autowired
-    private UniqueCodeGenerator uniqueCodeGenerator; // Autowire the service
+    private UniqueCodeGenerator uniqueCodeGenerator;
 
     @Autowired
-    private TestRepository testRepository; // <-- AUTOWIRE TestRepository
+    private TestRepository testRepository;
 
-    // --- NEW ENDPOINT ---
     @GetMapping("/student/active-test")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     public ResponseEntity<?> getActiveTestForStudent(Authentication authentication) {
         String username = authentication.getName();
 
-        // 1. Find all classrooms student is in
         List<Classroom> classrooms = classroomRepository.findAllByClassroomstudentsContaining(username);
 
-        // 2. Search all tests in those classrooms for an "ACTIVE" one
         for (Classroom classroom : classrooms) {
             List<Test> tests = testRepository.findByClassroomCode(classroom.getCode());
             for (Test test : tests) {
                 if ("ACTIVE".equals(test.getStatus())) {
-                    // 3. Found one, return it
                     return ResponseEntity.ok(new TestDTO(test));
                 }
             }
         }
 
-        // 4. No active test found
         return ResponseEntity.noContent().build();
     }
 
@@ -66,13 +61,11 @@ public class ClassroomController {
             @RequestParam(required = false) String filter,
             Authentication authentication) {
 
-        // Search by classroom name (case insensitive)
         if (name != null && !name.isEmpty()) {
             Optional<Classroom> classroomOptional = classroomRepository.findByClassroomnameIgnoreCase(name);
             return classroomOptional.map(classroom -> new ResponseEntity<>(new ClassroomDTO(classroom), HttpStatus.OK)).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
         }
 
-        // Filter for only the classrooms relevant to the current user
         if ("mine".equalsIgnoreCase(filter)) {
             String username = authentication.getName();
             Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
@@ -174,23 +167,17 @@ public class ClassroomController {
             Classroom classroom = new Classroom();
             classroom.setClassroomname(classroomname);
 
-            // Generate the unique code
             String code = uniqueCodeGenerator.generateUniqueCode();
             classroom.setCode(code);
 
-            // Correctly get the User object from the principal
             MyUserDetails userDetails = (MyUserDetails) authentication.getPrincipal();
             User currentUser = userDetails.getUser();
             classroom.setClassroomteacher(currentUser);
 
-            // Students should start empty
             classroom.setClassroomstudents(Collections.emptyList());
 
-            // Save classroom
             Classroom savedClassroom = classroomRepository.save(classroom);
 
-            // --- THIS IS THE FIX ---
-            // Return a DTO instead of the raw entity to avoid proxy serialization
             return new ResponseEntity<>(new ClassroomDTO(savedClassroom), HttpStatus.CREATED);
 
         } catch (Exception e) {

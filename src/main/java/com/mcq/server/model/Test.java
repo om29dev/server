@@ -24,7 +24,6 @@ public class Test {
     @Column(name = "questions_pdf_path", nullable = false)
     private String questionsPdfPath;
 
-    // --- NEW FIELD ---
     @Column(name = "question_count", nullable = false)
     private int questionCount;
 
@@ -39,12 +38,6 @@ public class Test {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "classroom_code", nullable = false)
     private Classroom classroom;
-
-    // --- FIELD REMOVED ---
-    // The @OneToMany testSubmissions list was removed.
-    // It was not modeled correctly (using 'testname' as a JoinColumn)
-    // and was likely conflicting with the manual deletion logic in TestController.
-    // Removing it fixes the 500 Internal Server Error on test deletion.
 
     @Column(nullable = false)
     private String status = "NOT_STARTED";
@@ -75,7 +68,6 @@ public class Test {
         this.questionsPdfPath = questionsPdfPath;
     }
 
-    // --- NEW GETTER/SETTER ---
     public int getQuestionCount() {
         return questionCount;
     }
@@ -99,10 +91,6 @@ public class Test {
     public void setClassroom(Classroom classroom) {
         this.classroom = classroom;
     }
-
-    // --- GETTER/SETTER REMOVED ---
-    // public List<TestSubmission> getTestSubmissions() ...
-    // public void setTestSubmissions(List<TestSubmission> testSubmissions) ...
 
     public String getStatus() {
         return status;

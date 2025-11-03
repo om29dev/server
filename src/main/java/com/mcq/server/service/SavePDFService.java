@@ -14,7 +14,6 @@ public class SavePDFService {
 
     private final String uploadDir = System.getProperty("user.home") + "/com.mcq.server/tests/pdf/";
 
-    // A simple record to return two values
     public record PdfInfo(String path, int pageCount) {}
 
     public PdfInfo savePDF(MultipartFile file) throws IOException {
@@ -31,14 +30,12 @@ public class SavePDFService {
             Files.createDirectories(uploadPath);
         }
 
-        // --- NEW: Load PDF to count pages ---
         int pageCount;
         try (PDDocument document = Loader.loadPDF(file.getBytes())) {
             pageCount = document.getNumberOfPages();
         } catch (IOException e) {
             throw new IOException("Failed to read PDF file to count pages.", e);
         }
-        // --- END NEW ---
 
         String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
         Path filePath = uploadPath.resolve(fileName);
